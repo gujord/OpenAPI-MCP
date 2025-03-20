@@ -1,5 +1,10 @@
 # OpenAPI-MCP
 
+![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![Repo Size](https://img.shields.io/github/repo-size/gujord/OpenAPI-MCP)
+![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
+![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
+
 OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI specification to dynamically generate and call API endpoints. The tool integrates with the Model Context Protocol (MCP) so that large language models (LLMs) can use these endpoints as callable tools.
 
 ![Alt text](OpenAPI-MCP.png)
