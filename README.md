@@ -8,8 +8,6 @@
 OpenAPI-MCP makes any API available to Large Language Models (LLMs) through the Model Context Protocol (MCP). It automatically reads OpenAPI/Swagger specifications and dynamically registers endpoints, enabling LLMs to seamlessly interact with external APIs.
 
 If you like the direction of this project, consider giving it a ⭐ on GitHub!
-![GitHub Repo stars](https://img.shields.io/github/stars/gujord/OpenAPI-MCP?style=social)  
-[GitHub](https://github.com/gujord/OpenAPI-MCP)
 
 ![OpenAPI-MCP](OpenAPI-MCP.png)
 
