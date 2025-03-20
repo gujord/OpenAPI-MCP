@@ -74,6 +74,27 @@ Alternatively, for direct access tokens, set:
 
 - **AUTH_TOKEN**
 
+## Model Context Protocol (MCP) Configuration
+
+Include the following configuration in your MCP setup to enable dynamic OpenAPI endpoint exposure:
+
+```json
+{
+    "mcpServers": {
+        "openapi_proxy_server": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source venv/bin/activate && python3 src/openapi-mcp.py api list-endpoints --output yaml"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
+            }
+        }
+    }
+}
+```
+
 ## Usage
 
 ### List Available Endpoints
@@ -156,27 +177,6 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 - **OPENAPI_URL:** Verify accessibility and correct OpenAPI specification format.
 - **OAuth Errors:** Ensure OAuth environment variables are set properly.
 - **Parameter Issues:** Use `--dry-run` to validate parameters.
-
-## Model Context Protocol (MCP) Configuration
-
-Include the following configuration in your MCP setup to enable dynamic OpenAPI endpoint exposure:
-
-```json
-{
-    "mcpServers": {
-        "openapi_proxy_server": {
-            "command": "bash",
-            "args": [
-                "-c",
-                "source venv/bin/activate && python3 src/openapi-mcp.py api list-endpoints --output yaml"
-            ],
-            "env": {
-                "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
-            }
-        }
-    }
-}
-```
 
 ## License & Credits
 
