@@ -3,6 +3,7 @@ import sys
 import json
 import httpx
 import logging
+import re
 from urllib.parse import urljoin, urlparse
 from typing import Any, Dict, Tuple, List, Optional
 import yaml
@@ -16,6 +17,14 @@ logging.basicConfig(
 
 mcp: Optional[FastMCP] = None
 operations_info: Dict[str, Dict[str, Any]] = {}
+
+def sanitize_tool_name(name: str) -> str:
+    """
+    Saniterer navnet slik at det kun inneholder bokstaver, tall, understrek og bindestrek.
+    Bytter ut ugyldige tegn med understrek og begrenser lengden til 64 tegn.
+    """
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    return sanitized[:64]
 
 def initialize_mcp(server_name: str = "openapi_proxy_server") -> FastMCP:
     global mcp
@@ -101,6 +110,7 @@ def load_openapi(openapi_url: str) -> Tuple[Dict[str, Any], str, Dict[str, Dict[
 def get_tool_metadata(ops_info: Dict[str, Any]) -> Dict[str, Any]:
     tools_list: List[Dict[str, Any]] = []
     for op_id, info in ops_info.items():
+        safe_op_id = sanitize_tool_name(op_id)
         properties = {}
         required: List[str] = []
         for param in info.get("parameters", []):
@@ -114,13 +124,13 @@ def get_tool_metadata(ops_info: Dict[str, Any]) -> Dict[str, Any]:
         if required:
             input_schema["required"] = required
         tools_list.append({
-            "name": op_id,
+            "name": safe_op_id,
             "description": info.get("summary", op_id),
             "inputSchema": input_schema
         })
     return {"tools": tools_list}
 
-# Fjern dekoratøren; definer metadata_tool som en vanlig funksjon.
+# Definer metadata_tool som en vanlig funksjon (uten dekoratør)
 def metadata_tool() -> Dict[str, Any]:
     return get_tool_metadata(operations_info)
 
@@ -246,9 +256,10 @@ def register_openapi_tools():
     if openapi_url:
         _, server_url, operations_info = load_openapi(openapi_url)
         client = httpx.Client()
-        for operation_id, info in operations_info.items():
+        for op_id, info in operations_info.items():
+            safe_op_id = sanitize_tool_name(op_id)
             tool_function = generate_tool_function(
-                operation_id=operation_id,
+                operation_id=op_id,
                 method=info["method"],
                 path=info["path"],
                 parameters=info.get("parameters", []),
@@ -256,12 +267,12 @@ def register_openapi_tools():
                 ops_info=operations_info,
                 client=client
             )
-            mcp.add_tool(tool_function, name=operation_id, description=info.get("summary", operation_id))
+            mcp.add_tool(tool_function, name=safe_op_id, description=info.get("summary", op_id))
         client.close()
     else:
         operations_info = {}
 
-    # Registrer metadata_tool eksplisitt
+    # Registrer metadata_tool eksplisitt med et gyldig navn
     mcp.add_tool(metadata_tool, name="tools_list", description="List available tools and capabilities")
 
 def main():
