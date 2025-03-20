@@ -95,6 +95,8 @@ Include the following configuration in your MCP setup to enable dynamic OpenAPI 
 }
 ```
 
+**Note: This configuration will soon change to support multiple servers.**
+
 ## Usage
 
 ### List Available Endpoints
