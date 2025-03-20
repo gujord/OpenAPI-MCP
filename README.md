@@ -113,18 +113,28 @@ For Windsurf, create a JSON config (typically in `~/.codeium/windsurf/mcp_config
 
 ```json
 {
-  "mcpServers": {
-    "barentswatch": {
-      "command": "bash",
-      "args": [
-        "-c",
-        "source /path/to/venv/bin/activate && python3 /path/to/openapi-mcp.py --server barentswatch --openapi-url 'https://live.ais.barentswatch.no/live/openapi/ais/openapi.json' api tools_list"
-      ],
-      "env": {
-        "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
-      }
+    "mcpServers": {
+        "barentswatch": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source /Users/rogerg/windsurf/OpenAPI-MCP/venv/bin/activate && python3 /Users/rogerg/windsurf/OpenAPI-MCP/src/openapi-mcp.py --server barentswatch --openapi-url 'https://live.ais.barentswatch.no/live/openapi/ais/openapi.json'"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
+            }
+        },
+        "locationforecast": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source /Users/rogerg/windsurf/OpenAPI-MCP/venv/bin/activate && python3 /Users/rogerg/windsurf/OpenAPI-MCP/src/openapi-mcp.py --server locationforecast --openapi-url 'https://api.met.no/weatherapi/locationforecast/2.0/swagger'"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
+            }
+        }
     }
-  }
 }
 ```
 
