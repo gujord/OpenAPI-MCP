@@ -1,4 +1,3 @@
-```markdown
 # OpenAPI to Model Context Protocol (MCP)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -225,4 +224,3 @@ If you like this project, consider giving it a ⭐ on GitHub!
 ## License & Credits
 
 This project is licensed under the [MIT License](LICENSE). For API-specific client registration details, refer to the respective API provider's documentation.
-```
