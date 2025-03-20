@@ -1,11 +1,11 @@
-# OpenAPI to Model Context Protocol
+# OpenAPI to Model Context Protocol (MCP)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Repo Size](https://img.shields.io/github/repo-size/gujord/OpenAPI-MCP)
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 
-OpenAPI-MCP makes any API available to Large Language Models (LLMs) through the Model Context Protocol (MCP). It automatically reads OpenAPI/Swagger specifications and dynamically registers endpoints, enabling LLMs to seamlessly interact with external APIs.
+OpenAPI-MCP makes any API available to Large Language Models (LLMs) through the Model Context Protocol (MCP). It automatically loads OpenAPI/Swagger specifications and dynamically registers endpoints as callable MCP tools. The MCP server responds in JSON-RPC 2.0 format and includes a top-level `server_name` field, making it straightforward for orchestrators like Cursor, Windsurf, and Claude Desktop to discover and invoke API endpoints.
 
 If you like the direction of this project, consider giving it a ⭐ on GitHub!
 
@@ -13,11 +13,11 @@ If you like the direction of this project, consider giving it a ⭐ on GitHub!
 
 ## Features
 
-- **Dynamic Endpoint Generation:** Loads OpenAPI specifications (JSON/YAML) to extract API endpoint details automatically.
-- **JSON-RPC 2.0 Compliance:** All responses conform to the JSON-RPC 2.0 standard, with a top-level `server_name` field for seamless integration.
-- **Error & Help Documentation:** Detailed messages are provided for missing parameters or unknown endpoints.
+- **Dynamic Endpoint Generation:** Automatically extracts API endpoint details from OpenAPI specifications (JSON/YAML) and registers them as MCP tools.
+- **JSON-RPC 2.0 Compliance:** All responses follow the JSON-RPC 2.0 standard with a top-level `server_name` field.
+- **Error Handling & Help Documentation:** Provides detailed messages for missing parameters, unknown endpoints, or API errors.
 - **Authentication Support:** Supports both direct access tokens and OAuth client_credentials authentication.
-- **LLM Integration via MCP:** Endpoints are registered as callable tools, enabling direct invocation by LLMs. This generic MCP server output is compatible with integrations like cursor and windsurf.
+- **LLM Integration via MCP:** Endpoints are exposed as tools that LLMs can invoke. The generic MCP server output is compatible with integrations like Cursor, Windsurf, and Claude Desktop.
 
 ## Prerequisites
 
@@ -39,7 +39,6 @@ If you like the direction of this project, consider giving it a ⭐ on GitHub!
      ```bash
      source venv/bin/activate
      ```
-
    - **Windows:**
      ```bash
      venv\Scripts\activate
@@ -53,11 +52,11 @@ If you like the direction of this project, consider giving it a ⭐ on GitHub!
 
 ## Environment Variables
 
-Set necessary environment variables before running:
+Set the necessary environment variables before running the MCP server:
 
 ### OpenAPI Specification
 
-- **OPENAPI_URL**: URL pointing to your OpenAPI specification (JSON/YAML).
+- **OPENAPI_URL**: URL pointing to your OpenAPI specification (JSON or YAML).
 
   ```bash
   export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -72,65 +71,80 @@ If using OAuth client_credentials authentication, set:
 - **OAUTH_SCOPE** (default: `api`)
 - **OAUTH_TOKEN_URL**
 
-Alternatively, for direct access tokens, set:
+For direct access tokens, set:
 
 - **AUTH_TOKEN**
 
 ## Model Context Protocol (MCP) Configuration
 
-The MCP integration now returns JSON-RPC 2.0 responses with a top-level `server_name` field. This structure makes it easy to integrate with MCP orchestrators (e.g., cursor and windsurf). For example, include the following configuration in your MCP setup:
+The MCP integration now returns JSON-RPC 2.0 responses including a top-level `server_name` field. This allows external orchestrators (e.g., Cursor, Windsurf, Claude Desktop) to easily discover and invoke tools.
 
-**Example MCP config:**
+### Example MCP Config for Cursor
+
+Create a file called `.cursor/mcp.json` in your project root (or in your home directory for a global configuration) with the following content:
 
 ```json
 {
-    "mcpServers": {
-        "locationforecast": {
-            "command": "bash",
-            "args": [
-                "-c",
-                "source venv/bin/activate && python3 src/openapi-mcp.py --server locationforecast api list-endpoints"
-            ],
-            "env": {
-                "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
-            }
-        },
-        "barentswatch": {
-            "command": "bash",
-            "args": [
-                "-c",
-                "source venv/bin/activate && python3 src/openapi-mcp.py --server barentswatch api list-endpoints"
-            ],
-            "env": {
-                "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
-            }
-        }
+  "mcpServers": {
+    "barentswatch": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "source /path/to/venv/bin/activate && python3 /path/to/openapi-mcp.py --server barentswatch --openapi-url 'https://live.ais.barentswatch.no/live/openapi/ais/openapi.json' api tools-list"
+      ],
+      "env": {
+        "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
+      }
     }
+  }
 }
 ```
 
-This configuration demonstrates a generic MCP server that can be registered and invoked by external LLM integrations.
+Cursor will read this configuration, launch the MCP server using the specified command, and then discover the exposed tools (remembering that Cursor supports up to 40 tools). When interacting with the Cursor agent, reference the tool names or descriptions as provided by the MCP server.
+
+### Example MCP Config for Windsurf
+
+For Windsurf, create a JSON config (typically in `~/.codeium/windsurf/mcp_config.json`) with a similar structure:
+
+```json
+{
+  "mcpServers": {
+    "barentswatch": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "source /path/to/venv/bin/activate && python3 /path/to/openapi-mcp.py --server barentswatch --openapi-url 'https://live.ais.barentswatch.no/live/openapi/ais/openapi.json' api tools-list"
+      ],
+      "env": {
+        "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
+      }
+    }
+  }
+}
+```
+
+Note: Windsurf supports only MCP tools, and each tool invocation may consume credits.
 
 ## Usage
 
-### List Available Endpoints
+### Listing Available Endpoints
 
-List endpoints from the OpenAPI spec. The response is a JSON-RPC 2.0 message that includes a top-level `server_name` field:
+List endpoints from the OpenAPI specification. The response is a JSON-RPC 2.0 message including a top-level `server_name` field:
 
 ```bash
-python3 src/openapi-mcp.py api list-endpoints --output json
+python3 src/openapi-mcp.py api tools-list --output json
 ```
 
-Example (YAML):
+Example with a different API (YAML output example):
 
 ```bash
 export OPENAPI_URL="https://nvdbapiles.atlas.vegvesen.no/openapi.yaml"
-python3 src/openapi-mcp.py api list-endpoints --output yaml
+python3 src/openapi-mcp.py api tools-list --output yaml
 ```
 
-### Get Endpoint Help
+### Getting Endpoint Help
 
-Retrieve detailed help on endpoint parameters and usage:
+Retrieve detailed help on endpoint parameters and usage by passing the keyword `help` after the endpoint name:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name <endpoint_name> help
@@ -142,15 +156,15 @@ Example:
 python3 src/openapi-mcp.py api call-endpoint --name get__compact help
 ```
 
-### Call an Endpoint
+### Calling an Endpoint
 
-Invoke an endpoint with parameters. The response will follow the JSON-RPC 2.0 standard:
+Invoke an endpoint with parameters. The response will be a JSON-RPC 2.0 message with a top-level `server_name`:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10
 ```
 
-Dry-run mode for testing parameters without sending a request:
+To simulate a call without sending a real API request, use the dry-run mode:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10 --dry-run
@@ -158,13 +172,13 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 
 ## Integration with LLMs via MCP
 
-OpenAPI-MCP integrates with MCP, enabling LLMs to directly invoke API endpoints:
+OpenAPI-MCP is designed to integrate seamlessly with MCP orchestrators:
 
-- **Dynamic Registration:** Endpoints from the OpenAPI spec are automatically loaded and registered as MCP tools.
-- **LLM Invocation:** LLMs call endpoints using registered operation IDs, with all responses formatted according to JSON-RPC 2.0 (including a top-level `server_name`).
-- **Generic Server:** The MCP server is generic and can work with various orchestrators (like cursor and windsurf) without modification.
+- **Dynamic Registration:** Endpoints from the OpenAPI spec are automatically registered as MCP tools.
+- **LLM Invocation:** LLMs invoke endpoints using the registered operation IDs. All responses conform to JSON-RPC 2.0, making them easily interpretable by the orchestrator.
+- **Generic Server:** The server is language-agnostic and works with various clients (Cursor, Windsurf, Claude Desktop) without additional modification.
 
-This integration extends LLM capabilities by facilitating structured interaction with external APIs.
+This design extends LLM capabilities by providing a standardized and secure method to interact with external APIs.
 
 ## Examples
 
@@ -172,17 +186,17 @@ This integration extends LLM capabilities by facilitating structured interaction
 
 ```bash
 export OPENAPI_URL="https://nvdbapiles.atlas.vegvesen.no/openapi.yaml"
-python3 src/openapi-mcp.py api list-endpoints --output yaml
+python3 src/openapi-mcp.py api tools-list --output yaml
 ```
 
-### Example 2: Endpoint Help
+### Example 2: Get Endpoint Help
 
 ```bash
 export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
 python3 src/openapi-mcp.py api call-endpoint --name get__compact help
 ```
 
-### Example 3: Endpoint Call with Parameters
+### Example 3: Call an Endpoint with Parameters
 
 ```bash
 export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -191,17 +205,16 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 
 ## Troubleshooting
 
-- **OPENAPI_URL:** Ensure the OpenAPI specification is accessible and correctly formatted.
-- **OAuth Errors:** Verify that all required OAuth environment variables are set properly.
-- **Parameter Issues:** Use the `--dry-run` flag to validate parameters before executing an API call.
+- **OPENAPI_URL:** Ensure the URL is accessible and the specification is correctly formatted (JSON or YAML).
+- **OAuth Errors:** Double-check that all necessary OAuth environment variables are set.
+- **Parameter Issues:** Use the `--dry-run` flag to validate parameters and check for missing or incorrectly formatted values.
 
 ## Contributions
 
-Contributions are welcome. Please open an issue or submit a pull request.
+Contributions are welcome. Please open an issue or submit a pull request if you have improvements or bug fixes.
 
-If you like the direction of this project, consider giving it a ⭐ on GitHub!
+If you like this project, consider giving it a ⭐ on GitHub!
 
 ## License & Credits
 
-Refer to [LICENSE](LICENSE) for license details (MIT). For API-specific client registration, refer to the respective API provider's documentation.
-```
+This project is licensed under the [MIT License](LICENSE). For API-specific client registration details, refer to the respective API provider's documentation.
