@@ -193,6 +193,9 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
     and logs progress using the optional context (ctx) parameter.
     """
     def tool_func(**kwargs):
+        # Use a local copy of the path so the original parameter is not overwritten.
+        local_path = path
+
         # Extract and use context for logging if provided.
         ctx = kwargs.pop("ctx", None)
         if ctx:
@@ -234,8 +237,7 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
                     value = str(value).lower() in ("true", "1", "yes", "y")
 
                 if location == "path":
-                    path_local = path.replace(f"{{{name}}}", str(value))
-                    path = path_local
+                    local_path = local_path.replace(f"{{{name}}}", str(value))
                 elif location == "query":
                     request_params[name] = value
                 elif location == "header":
@@ -248,7 +250,7 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
         if oauth_token:
             request_headers["Authorization"] = f"Bearer {oauth_token}"
 
-        full_url = urljoin(server_url, path)
+        full_url = urljoin(server_url, local_path)
         if dry_run:
             dry_run_output = {
                 "dry_run": True,
