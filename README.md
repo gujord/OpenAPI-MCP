@@ -29,10 +29,13 @@ OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI spe
 2. **Activate the Virtual Environment:**
 
    - On Linux/macOS:
+
      ```bash
      source venv/bin/activate
      ```
+
    - On Windows:
+
      ```bash
      venv\Scripts\activate
      ```
@@ -51,6 +54,7 @@ Before running the tool, set the necessary environment variables.
 
 - **OPENAPI_URL**: URL to your OpenAPI specification (JSON or YAML).  
   Example:
+
   ```bash
   export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
   ```
@@ -58,12 +62,14 @@ Before running the tool, set the necessary environment variables.
 ### OAuth Authentication (Optional)
 
 If your API requires OAuth authentication using the client_credentials flow, set:
+
 - **OAUTH_CLIENT_ID**
 - **OAUTH_CLIENT_SECRET**
 - **OAUTH_SCOPE** (defaults to `api` if not set)
 - **OAUTH_TOKEN_URL**
 
 Alternatively, if you already have an access token, set:
+
 - **AUTH_TOKEN**
 
 ## Usage
