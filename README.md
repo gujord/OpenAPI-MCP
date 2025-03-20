@@ -2,6 +2,8 @@
 
 OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI specification to dynamically generate and call API endpoints. The tool integrates with the Model Context Protocol (MCP) so that large language models (LLMs) can use these endpoints as callable tools.
 
+![Alt text](OpenAPI-MCP.png)
+
 ## Features
 
 - **Dynamic Endpoint Generation:** Load OpenAPI specifications (in JSON or YAML) and extract API endpoint details.
