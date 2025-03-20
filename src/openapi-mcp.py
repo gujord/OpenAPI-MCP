@@ -6,7 +6,6 @@ import logging
 import argparse
 from urllib.parse import urljoin, urlparse
 from typing import Any, Dict
-
 import yaml
 
 from mcp.server.fastmcp import FastMCP
@@ -16,8 +15,9 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 
-# Global variable to hold the MCP instance
+# Global variables to hold the MCP instance and operations info
 mcp = None
+operations_info = {}
 
 def initialize_mcp(server_name="openapi_proxy_server"):
     """
@@ -89,7 +89,7 @@ def load_openapi(openapi_url: str) -> (Dict[str, Any], str, Dict[str, Dict[str, 
         server_url = f"https://{raw_server_url}"
     else:
         server_url = raw_server_url
-    operations_info = {}
+    ops_info = {}
     for path, path_item in openapi_spec.get("paths", {}).items():
         for method, operation in path_item.items():
             if method.lower() not in ["get", "post", "put", "delete", "patch", "head", "options"]:
@@ -98,41 +98,45 @@ def load_openapi(openapi_url: str) -> (Dict[str, Any], str, Dict[str, Dict[str, 
             if not operation_id:
                 sanitized = path.replace("/", "_").replace("{", "").replace("}", "")
                 operation_id = f"{method}_{sanitized}"
-            operations_info[operation_id] = {
+            ops_info[operation_id] = {
                 "summary": operation.get("summary", ""),
                 "parameters": operation.get("parameters", []),
                 "path": path,
                 "method": method.upper()
             }
-    return openapi_spec, server_url, operations_info
+    return openapi_spec, server_url, ops_info
 
 ###############################################################################
-# Helper: Return endpoints list as JSON object (compliant with JSON-RPC response)
-# Note: Nested server_name removed; it will be included only at the top level.
+# Helper: Return tools list as JSON object (compliant with desired output)
 ###############################################################################
-def get_endpoints_json(operations_info: Dict[str, Any]) -> Dict[str, Any]:
-    endpoints = []
-    for op_id, info in operations_info.items():
-        endpoints.append({
-            "id": op_id,
-            "method": info["method"],
-            "path": info["path"],
-            "summary": info.get("summary", "")
+def get_tools_json(ops_info: Dict[str, Any]) -> Dict[str, Any]:
+    tools = []
+    for op_id, info in ops_info.items():
+        param_dict = {}
+        for param in info.get("parameters", []):
+            name = param.get("name")
+            p_type = param.get("schema", {}).get("type", "string")
+            description = param.get("description", "")
+            param_dict[name] = {"type": p_type, "description": description}
+        tools.append({
+            "name": op_id,
+            "description": info.get("summary", op_id),
+            "parameters": param_dict
         })
     return {
-        "endpoints": endpoints,
-        "global_options": {
-            "--dry-run": "Simulate execution without making an API call",
-            "--param": "Provide parameters in key=value format (can be repeated)"
-        }
+         "server_name": mcp.server_name if mcp else None,
+         "global_options": {
+              "--dry-run": "Simulate execution without making an API call",
+              "--param": "Provide parameters in key=value format (can be repeated)"
+         },
+         "tools": tools
     }
 
 ###############################################################################
 # Helper: Return help for a specific endpoint as JSON object (compliant with JSON-RPC response)
-# Note: Nested server_name removed.
 ###############################################################################
-def get_endpoint_help_json(endpoint: str, operations_info: Dict[str, Any]) -> Dict[str, Any]:
-    info = operations_info.get(endpoint)
+def get_endpoint_help_json(endpoint: str, ops_info: Dict[str, Any]) -> Dict[str, Any]:
+    info = ops_info.get(endpoint)
     if not info:
         return {"error": f"Endpoint not found: {endpoint}"}
     help_info = {
@@ -153,14 +157,14 @@ def get_endpoint_help_json(endpoint: str, operations_info: Dict[str, Any]) -> Di
 # Returns JSON-RPC 2.0 compliant response including the server name at the top level.
 ###############################################################################
 def generate_tool_function(operation_id: str, method: str, path: str, parameters: list,
-                           server_url: str, operations_info: Dict[str, Any], client: httpx.Client):
+                           server_url: str, ops_info: Dict[str, Any], client: httpx.Client):
     def tool_func(**kwargs):
         missing_params = []
         for param in parameters:
             if param.get("required", False) and (param["name"] not in kwargs):
                 missing_params.append(param)
         if missing_params:
-            help_json = get_endpoint_help_json(operation_id, operations_info)
+            help_json = get_endpoint_help_json(operation_id, ops_info)
             return {
                 "jsonrpc": "2.0",
                 "id": 0,
@@ -173,6 +177,7 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
         request_headers = {}
         request_body = None
         
+        # Process parameters according to their location
         for param in parameters:
             name = param["name"]
             location = param.get("in", "query")
@@ -187,7 +192,8 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
                     value = str(value).lower() in ("true", "1", "yes", "y")
                 
                 if location == "path":
-                    path = path.replace(f"{{{name}}}", str(value))
+                    path_local = path.replace(f"{{{name}}}", str(value))
+                    path = path_local  # update path for subsequent replacements if any
                 elif location == "query":
                     request_params[name] = value
                 elif location == "header":
@@ -249,16 +255,25 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
     return tool_func
 
 ###############################################################################
+# Named metadata tool function to expose endpoints as tools to Cursor.
+###############################################################################
+def metadata_tool():
+    return get_tools_json(operations_info)
+
+###############################################################################
 # MCP API command handler (always returns JSON-RPC 2.0 responses)
 ###############################################################################
 def mcp_api_handler(args: argparse.Namespace):
-    openapi_url = os.environ.get("OPENAPI_URL")
+    global operations_info
+
+    # Prefer command-line argument over environment variable
+    openapi_url = args.openapi_url if args.openapi_url else os.environ.get("OPENAPI_URL")
     if not openapi_url:
         error_output = {
             "jsonrpc": "2.0",
             "id": 0,
             "server_name": mcp.server_name if mcp else None,
-            "error": {"code": -32602, "message": "OPENAPI_URL environment variable not set."}
+            "error": {"code": -32602, "message": "OPENAPI_URL not provided. Set via --openapi-url or environment variable."}
         }
         print(json.dumps(error_output, indent=2))
         sys.exit(1)
@@ -280,9 +295,11 @@ def mcp_api_handler(args: argparse.Namespace):
         print(json.dumps(output, indent=2))
         return
         
-    openapi_spec, server_url, operations_info = load_openapi(openapi_url)
+    # Load the OpenAPI specification and extract operations info
+    _, server_url, operations_info = load_openapi(openapi_url)
     client = httpx.Client()
     
+    # Register each OpenAPI endpoint as a MCP tool
     for operation_id, info in operations_info.items():
         tool_func = generate_tool_function(
             operation_id=operation_id,
@@ -290,18 +307,26 @@ def mcp_api_handler(args: argparse.Namespace):
             path=info["path"],
             parameters=info.get("parameters", []),
             server_url=server_url,
-            operations_info=operations_info,
+            ops_info=operations_info,
             client=client
         )
         globals()[operation_id] = mcp.tool()(tool_func)
     
+    # Register metadata as a tool using a named function
+    globals()["metadata"] = mcp.tool(name="metadata", description="Expose metadata for available tools")(metadata_tool)
+    
     if args.action == "list-endpoints":
-        endpoints_list = get_endpoints_json(operations_info)
+        # Instead of endpoints, we now return tools as specified
+        tools_list = get_tools_json(operations_info)
         output = {
             "jsonrpc": "2.0",
             "id": 0,
             "server_name": mcp.server_name if mcp else None,
-            "result": endpoints_list
+            "global_options": {
+                "--dry-run": "Simulate execution without making an API call",
+                "--param": "Provide parameters in key=value format (can be repeated)"
+            },
+            "tools": tools_list["tools"]
         }
         print(json.dumps(output, indent=2))
     elif args.action == "call-endpoint":
@@ -371,9 +396,13 @@ def mcp_api_handler(args: argparse.Namespace):
 # Main entry point
 ###############################################################################
 def main():
-    parser = argparse.ArgumentParser(prog="openapi-mcp", description="CLI for OpenAPI-based API calls (JSON-RPC 2.0 only)")
+    parser = argparse.ArgumentParser(
+        prog="openapi-mcp",
+        description="CLI for OpenAPI-based API calls (JSON-RPC 2.0 only)"
+    )
     parser.add_argument("--server", default="openapi_proxy_server", 
                         help="MCP server name to use (default: openapi_proxy_server)")
+    parser.add_argument("--openapi-url", help="URL of the OpenAPI specification")
     subparsers = parser.add_subparsers(dest="service", required=True, help="Service (e.g., api)")
 
     api_parser = subparsers.add_parser("api", help="API service commands")
