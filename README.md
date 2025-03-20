@@ -14,10 +14,10 @@ If you like the direction of this project, consider giving it a ⭐ on GitHub!
 ## Features
 
 - **Dynamic Endpoint Generation:** Loads OpenAPI specifications (JSON/YAML) to extract API endpoint details automatically.
-- **Multiple Output Formats:** JSON, YAML, XML, and Markdown outputs are supported.
-- **Error & Help Documentation:** Detailed messages provided for missing parameters or unknown endpoints.
-- **Authentication Support:** Direct access tokens and OAuth client_credentials authentication are supported.
-- **LLM Integration via MCP:** Endpoints are registered as callable tools for direct invocation by LLMs.
+- **JSON-RPC 2.0 Compliance:** All responses conform to the JSON-RPC 2.0 standard, with a top-level `server_name` field for seamless integration.
+- **Error & Help Documentation:** Detailed messages are provided for missing parameters or unknown endpoints.
+- **Authentication Support:** Supports both direct access tokens and OAuth client_credentials authentication.
+- **LLM Integration via MCP:** Endpoints are registered as callable tools, enabling direct invocation by LLMs. This generic MCP server output is compatible with integrations like cursor and windsurf.
 
 ## Prerequisites
 
@@ -78,16 +78,16 @@ Alternatively, for direct access tokens, set:
 
 ## Model Context Protocol (MCP) Configuration
 
-Include the following configuration in your MCP setup to enable dynamic OpenAPI endpoint exposure:
+The MCP integration now returns JSON-RPC 2.0 responses with a top-level `server_name` field. This structure makes it easy to integrate with MCP orchestrators (e.g., cursor and windsurf). For example, include the following configuration in your MCP setup:
 
 ```json
 {
     "mcpServers": {
-        "openapi_proxy_server": {
+        "locationforecast": {
             "command": "bash",
             "args": [
                 "-c",
-                "source venv/bin/activate && python3 src/openapi-mcp.py api list-endpoints --output yaml"
+                "source venv/bin/activate && python3 src/openapi-mcp.py --server locationforecast api list-endpoints"
             ],
             "env": {
                 "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -97,13 +97,13 @@ Include the following configuration in your MCP setup to enable dynamic OpenAPI 
 }
 ```
 
-**Note: This configuration will soon change to support multiple servers.**
+This configuration demonstrates a generic MCP server that can be registered and invoked by external LLM integrations.
 
 ## Usage
 
 ### List Available Endpoints
 
-List endpoints from the OpenAPI spec:
+List endpoints from the OpenAPI spec. The response is a JSON-RPC 2.0 message that includes a top-level `server_name` field:
 
 ```bash
 python3 src/openapi-mcp.py api list-endpoints --output json
@@ -118,7 +118,7 @@ python3 src/openapi-mcp.py api list-endpoints --output yaml
 
 ### Get Endpoint Help
 
-Detailed help on endpoint parameters and usage:
+Retrieve detailed help on endpoint parameters and usage:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name <endpoint_name> help
@@ -132,7 +132,7 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact help
 
 ### Call an Endpoint
 
-Invoke an endpoint with parameters:
+Invoke an endpoint with parameters. The response will follow the JSON-RPC 2.0 standard:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10
@@ -146,12 +146,13 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 
 ## Integration with LLMs via MCP
 
-OpenAPI-MCP integrates with MCP, allowing LLMs to directly invoke API endpoints:
+OpenAPI-MCP integrates with MCP, enabling LLMs to directly invoke API endpoints:
 
-- **Dynamic Registration:** Loads and registers OpenAPI endpoints.
-- **LLM Invocation:** LLMs call endpoints directly using registered operation IDs, ensuring parameter validation and proper response formatting.
+- **Dynamic Registration:** Endpoints from the OpenAPI spec are automatically loaded and registered as MCP tools.
+- **LLM Invocation:** LLMs call endpoints using registered operation IDs, with all responses formatted according to JSON-RPC 2.0 (including a top-level `server_name`).
+- **Generic Server:** The MCP server is generic and can work with various orchestrators (like cursor and windsurf) without modification.
 
-This integration extends LLM capabilities by facilitating interaction with external APIs.
+This integration extends LLM capabilities by facilitating structured interaction with external APIs.
 
 ## Examples
 
@@ -178,9 +179,9 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 
 ## Troubleshooting
 
-- **OPENAPI_URL:** Verify accessibility and correct OpenAPI specification format.
-- **OAuth Errors:** Ensure OAuth environment variables are set properly.
-- **Parameter Issues:** Use `--dry-run` to validate parameters.
+- **OPENAPI_URL:** Ensure the OpenAPI specification is accessible and correctly formatted.
+- **OAuth Errors:** Verify that all required OAuth environment variables are set properly.
+- **Parameter Issues:** Use the `--dry-run` flag to validate parameters before executing an API call.
 
 ## Contributions
 
