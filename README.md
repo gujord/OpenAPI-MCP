@@ -161,4 +161,4 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 ## License & Credits
 
 For license information, see the LICENSE file.  
-For further details on API client registration and usage, please refer to the respective API provider’s documentation (e.g., [BarentsWatch API](https://www.barentswatch.no/om/apnedata/)).
+For further details on API client registration and usage, please refer to the respective API provider’s documentation.
