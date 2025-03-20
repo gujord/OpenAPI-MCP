@@ -7,6 +7,8 @@
 
 OpenAPI-MCP makes any API available to Large Language Models (LLMs) through the Model Context Protocol (MCP). It automatically loads OpenAPI/Swagger specifications and dynamically registers endpoints as callable MCP tools. The MCP server responds in JSON-RPC 2.0 format and includes a top-level `server_name` field, making it straightforward for orchestrators like Cursor, Windsurf, and Claude Desktop to discover and invoke API endpoints.
 
+**Note:** This project is still in development and may have limitations or bugs. Use with caution.
+
 If you like the direction of this project, consider giving it a ⭐ on GitHub!
 
 ![OpenAPI-MCP](OpenAPI-MCP.png)
@@ -36,10 +38,13 @@ If you like the direction of this project, consider giving it a ⭐ on GitHub!
 2. **Activate the Virtual Environment:**
 
    - **Linux/macOS:**
+
      ```bash
      source venv/bin/activate
      ```
+
    - **Windows:**
+
      ```bash
      venv\Scripts\activate
      ```
