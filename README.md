@@ -1,6 +1,6 @@
 # OpenAPI to Model Context Protocol
 
-![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 ![Repo Size](https://img.shields.io/github/repo-size/gujord/OpenAPI-MCP)
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
@@ -179,6 +179,9 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 - **OPENAPI_URL:** Verify accessibility and correct OpenAPI specification format.
 - **OAuth Errors:** Ensure OAuth environment variables are set properly.
 - **Parameter Issues:** Use `--dry-run` to validate parameters.
+
+## Contributions
+Contributions are welcome. Please open an issue or submit a pull request.
 
 ## License & Credits
 
