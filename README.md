@@ -1,4 +1,4 @@
-# OpenAPI-MCP
+# OpenAPI-MCP (OpenAPI/Swagger to Model Context Protocol)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)
 ![Repo Size](https://img.shields.io/github/repo-size/gujord/OpenAPI-MCP)
