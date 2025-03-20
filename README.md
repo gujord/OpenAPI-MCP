@@ -5,7 +5,9 @@
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 
-OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI specification to dynamically generate and call API endpoints. The tool integrates with the Model Context Protocol (MCP), allowing large language models (LLMs) to directly invoke these endpoints as callable functions.
+OpenAPI-MCP makes any API available to Large Language Models (LLMs) through the Model Context Protocol (MCP). It automatically reads OpenAPI/Swagger specifications and dynamically registers endpoints, enabling LLMs to seamlessly interact with external APIs.
+
+If you like the direction of this project, consider giving it a ⭐ on GitHub!
 
 ![OpenAPI-MCP](OpenAPI-MCP.png)
 
@@ -181,8 +183,12 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 - **Parameter Issues:** Use `--dry-run` to validate parameters.
 
 ## Contributions
+
 Contributions are welcome. Please open an issue or submit a pull request.
+
+If you like the direction of this project, consider giving it a ⭐ on GitHub!
 
 ## License & Credits
 
 Refer to [LICENSE](LICENSE) for license details (MIT). For API-specific client registration, refer to the respective API provider's documentation.
+```
