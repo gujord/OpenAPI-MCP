@@ -5,23 +5,23 @@
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 
-OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI specification to dynamically generate and call API endpoints. The tool integrates with the Model Context Protocol (MCP) so that large language models (LLMs) can use these endpoints as callable tools.
+OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI specification to dynamically generate and call API endpoints. The tool integrates with the Model Context Protocol (MCP), allowing large language models (LLMs) to directly invoke these endpoints as callable functions.
 
-![Alt text](OpenAPI-MCP.png)
+![OpenAPI-MCP](OpenAPI-MCP.png)
 
 ## Features
 
-- **Dynamic Endpoint Generation:** Load OpenAPI specifications (in JSON or YAML) and extract API endpoint details.
-- **Multiple Output Formats:** Supports JSON, YAML, XML, and Markdown.
-- **Error & Help Documentation:** Provides detailed help messages when required parameters are missing or an endpoint is unknown.
-- **Authentication Support:** Can use a direct access token or perform an OAuth client_credentials flow.
-- **LLM Integration via MCP:** Registers endpoints as callable functions so LLMs can directly invoke them.
+- **Dynamic Endpoint Generation:** Loads OpenAPI specifications (JSON/YAML) to extract API endpoint details automatically.
+- **Multiple Output Formats:** JSON, YAML, XML, and Markdown outputs are supported.
+- **Error & Help Documentation:** Detailed messages provided for missing parameters or unknown endpoints.
+- **Authentication Support:** Direct access tokens and OAuth client_credentials authentication are supported.
+- **LLM Integration via MCP:** Endpoints are registered as callable tools for direct invocation by LLMs.
 
 ## Prerequisites
 
-- Python 3.7 or later.
-- A virtual environment is recommended.
-- Required packages are listed in `requirements.txt`.
+- Python 3.7 or newer
+- Virtual environment recommended
+- Dependencies listed in `requirements.txt`
 
 ## Setup Instructions
 
@@ -33,14 +33,12 @@ OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI spe
 
 2. **Activate the Virtual Environment:**
 
-   - On Linux/macOS:
-
+   - **Linux/macOS:**
      ```bash
      source venv/bin/activate
      ```
 
-   - On Windows:
-
+   - **Windows:**
      ```bash
      venv\Scripts\activate
      ```
@@ -53,12 +51,11 @@ OpenAPI-MCP is a command-line interface (CLI) tool that leverages an OpenAPI spe
 
 ## Environment Variables
 
-Before running the tool, set the necessary environment variables.
+Set necessary environment variables before running:
 
 ### OpenAPI Specification
 
-- **OPENAPI_URL**: URL to your OpenAPI specification (JSON or YAML).  
-  Example:
+- **OPENAPI_URL**: URL pointing to your OpenAPI specification (JSON/YAML).
 
   ```bash
   export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -66,37 +63,37 @@ Before running the tool, set the necessary environment variables.
 
 ### OAuth Authentication (Optional)
 
-If your API requires OAuth authentication using the client_credentials flow, set:
+If using OAuth client_credentials authentication, set:
 
 - **OAUTH_CLIENT_ID**
 - **OAUTH_CLIENT_SECRET**
-- **OAUTH_SCOPE** (defaults to `api` if not set)
+- **OAUTH_SCOPE** (default: `api`)
 - **OAUTH_TOKEN_URL**
 
-Alternatively, if you already have an access token, set:
+Alternatively, for direct access tokens, set:
 
 - **AUTH_TOKEN**
 
 ## Usage
 
-### Listing Endpoints
+### List Available Endpoints
 
-List all available endpoints defined in the OpenAPI spec. Supported output formats are: `json`, `yaml`, `xml`, and `markdown`.
+List endpoints from the OpenAPI spec:
 
 ```bash
 python3 src/openapi-mcp.py api list-endpoints --output json
 ```
 
-Example using YAML output:
+Example (YAML):
 
 ```bash
 export OPENAPI_URL="https://nvdbapiles.atlas.vegvesen.no/openapi.yaml"
 python3 src/openapi-mcp.py api list-endpoints --output yaml
 ```
 
-### Getting Help for an Endpoint
+### Get Endpoint Help
 
-To get detailed help about a specific endpoint, including parameter details, run:
+Detailed help on endpoint parameters and usage:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name <endpoint_name> help
@@ -108,49 +105,46 @@ Example:
 python3 src/openapi-mcp.py api call-endpoint --name get__compact help
 ```
 
-*Note:* If an endpoint does not provide a description, only the endpoint name will be listed.
+### Call an Endpoint
 
-### Calling an Endpoint
-
-To call an endpoint, provide the endpoint name along with any required parameters using the `--param` option:
+Invoke an endpoint with parameters:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10
 ```
 
-To simulate a request without actually sending it, use the `--dry-run` flag:
+Dry-run mode for testing parameters without sending a request:
 
 ```bash
 python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10 --dry-run
 ```
 
-## Using OpenAPI-MCP with LLMs via MCP
+## Integration with LLMs via MCP
 
-OpenAPI-MCP integrates with the Model Context Protocol (MCP) to expose API endpoints as callable tools. When the tool starts, it:
+OpenAPI-MCP integrates with MCP, allowing LLMs to directly invoke API endpoints:
 
-- **Loads the OpenAPI Spec:** Dynamically extracts endpoints and registers them.
-- **Registers Tools with MCP:** Each endpoint is registered as a callable function via `mcp.tool()`.
-- **LLM Invocation:** A large language model (LLM) can then use these functions to query APIs directly. When an LLM recognizes a need for external data, it can invoke a registered tool by its operation ID, passing along the required parameters. The tool validates the input and returns formatted output in the desired format.
+- **Dynamic Registration:** Loads and registers OpenAPI endpoints.
+- **LLM Invocation:** LLMs call endpoints directly using registered operation IDs, ensuring parameter validation and proper response formatting.
 
-This integration extends the capabilities of an LLM by enabling it to interact with external APIs, enriching the context and precision of its responses.
+This integration extends LLM capabilities by facilitating interaction with external APIs.
 
 ## Examples
 
-### Example 1: List Endpoints (YAML Format)
+### Example 1: List Endpoints (YAML)
 
 ```bash
 export OPENAPI_URL="https://nvdbapiles.atlas.vegvesen.no/openapi.yaml"
 python3 src/openapi-mcp.py api list-endpoints --output yaml
 ```
 
-### Example 2: Get Endpoint Help
+### Example 2: Endpoint Help
 
 ```bash
 export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
 python3 src/openapi-mcp.py api call-endpoint --name get__compact help
 ```
 
-### Example 3: Call an Endpoint with Parameters
+### Example 3: Endpoint Call with Parameters
 
 ```bash
 export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -159,11 +153,31 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 
 ## Troubleshooting
 
-- **OPENAPI_URL:** Ensure the URL is accessible and points to a valid OpenAPI specification.
-- **OAuth Setup:** Verify that your OAuth-related environment variables are correct if authentication is required.
-- **Parameter Errors:** Use the `--dry-run` flag to debug parameter issues before making live API calls.
+- **OPENAPI_URL:** Verify accessibility and correct OpenAPI specification format.
+- **OAuth Errors:** Ensure OAuth environment variables are set properly.
+- **Parameter Issues:** Use `--dry-run` to validate parameters.
+
+## Model Context Protocol (MCP) Configuration
+
+Include the following configuration in your MCP setup to enable dynamic OpenAPI endpoint exposure:
+
+```json
+{
+    "mcpServers": {
+        "openapi_proxy_server": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source venv/bin/activate && python3 src/openapi-mcp.py api list-endpoints --output yaml"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
+            }
+        }
+    }
+}
+```
 
 ## License & Credits
 
-For license information, see the LICENSE file.  
-For further details on API client registration and usage, please refer to the respective API provider’s documentation.
+Refer to [LICENSE](LICENSE) for license details (MIT). For API-specific client registration, refer to the respective API provider's documentation.
