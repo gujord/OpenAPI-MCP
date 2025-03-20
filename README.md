@@ -80,6 +80,8 @@ Alternatively, for direct access tokens, set:
 
 The MCP integration now returns JSON-RPC 2.0 responses with a top-level `server_name` field. This structure makes it easy to integrate with MCP orchestrators (e.g., cursor and windsurf). For example, include the following configuration in your MCP setup:
 
+**Example MCP config:**
+
 ```json
 {
     "mcpServers": {
@@ -91,6 +93,16 @@ The MCP integration now returns JSON-RPC 2.0 responses with a top-level `server_
             ],
             "env": {
                 "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
+            }
+        },
+        "barentswatch": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source venv/bin/activate && python3 src/openapi-mcp.py --server barentswatch api list-endpoints"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
             }
         }
     }
