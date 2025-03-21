@@ -61,8 +61,6 @@ OPENAPI_URL=https://api.example.com/openapi.json python src/openapi-mcp.py
 TRANSPORT=sse python src/openapi-mcp.py
 ```
 
-> ⚠️ CLI arguments like `--server` or `--openapi-url` are not supported. Use environment variables instead.
-
 ---
 
 ## How It Works
