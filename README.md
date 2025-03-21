@@ -123,30 +123,28 @@ Supports both Cursor and Windsurf via MCP JSON config:
 
 ```json
 {
-  "mcpServers": {
-    "barentswatch": {
-      "command": "bash",
-      "args": [
-        "-c",
-        "source venv/bin/activate && python3 src/openapi-mcp.py"
-      ],
-      "env": {
-        "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json",
-        "SERVER_NAME": "barentswatch"
-      }
-    },
-    "locationforecast": {
-      "command": "bash",
-      "args": [
-        "-c",
-        "source venv/bin/activate && python3 src/openapi-mcp.py"
-      ],
-      "env": {
-        "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger",
-        "SERVER_NAME": "locationforecast"
-      }
+    "mcpServers": {
+        "barentswatch": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source PATH-TO-OPENAPI-MCP/venv/bin/activate && python3 PATH-TO-OPENAPI-MCP/src/openapi-mcp.py server"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
+            }
+        },
+        "locationforecast": {
+            "command": "bash",
+            "args": [
+                "-c",
+                "source PATH-TO-OPENAPI-MCP/venv/bin/activate && python3 PATH-TO-OPENAPI-MCP/src/openapi-mcp.py server"
+            ],
+            "env": {
+                "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
+            }
+        }
     }
-  }
 }
 ```
 
