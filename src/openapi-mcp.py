@@ -309,9 +309,10 @@ def run_sse_app(mcp_instance: FastMCP):
                     "server_name": mcp_instance.server_name
                 }
             except Exception as e:
+                logging.error("Exception occurred: %s", str(e))
                 response = {
                     "jsonrpc": "2.0",
-                    "error": {"code": -32000, "message": str(e)},
+                    "error": {"code": -32000, "message": "An internal error has occurred"},
                     "id": req_id,
                     "server_name": mcp_instance.server_name
                 }
