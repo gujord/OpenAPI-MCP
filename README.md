@@ -1,4 +1,3 @@
-```markdown
 # OpenAPI to Model Context Protocol (MCP)
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
