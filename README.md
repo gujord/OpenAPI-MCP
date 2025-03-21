@@ -119,6 +119,37 @@ Upon connection to `/sse`, a metadata response containing available tools is emi
 
 Supports both Cursor and Windsurf via MCP JSON config:
 
+### Cursor (Global MCP: ~/.cursor/mcp.json)
+
+```json
+{
+  "mcpServers": {
+    "barentswatch": {
+      "command": "PATH-TO-OPENAPI-MCP/venv/bin/python",
+      "args": [
+        "PATH-TO-OPENAPI-MCP/src/openapi-mcp.py",
+        "server"
+      ],
+      "env": {
+        "OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"
+      }
+    },
+    "locationforecast": {
+      "command": "PATH-TO-OPENAPI-MCP/venv/bin/python",
+      "args": [
+        "PATH-TO-OPENAPI-MCP/src/openapi-mcp.py",
+        "server"
+      ],
+      "env": {
+        "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
+      }
+    }
+  }
+}
+```
+
+### Windsurf (Global MCP: ~/.codeium/windsurf/mcp_config.json)
+
 ```json
 {
     "mcpServers": {
