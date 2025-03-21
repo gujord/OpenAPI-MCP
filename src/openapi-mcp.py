@@ -4,6 +4,7 @@ import json
 import httpx
 import logging
 import re
+import asyncio
 from urllib.parse import urljoin, urlparse
 from typing import Any, Dict, Tuple, List, Optional
 import yaml
@@ -17,11 +18,13 @@ logging.basicConfig(
 
 mcp: Optional[FastMCP] = None
 operations_info: Dict[str, Dict[str, Any]] = {}
+# Global SSE queue to hold JSON-RPC responses to be streamed
+sse_queue: Optional[asyncio.Queue] = None
 
 def sanitize_tool_name(name: str) -> str:
     """
-    Saniterer navnet slik at det kun inneholder bokstaver, tall, understrek og bindestrek.
-    Bytter ut ugyldige tegn med understrek og begrenser lengden til 64 tegn.
+    Sanitizes the tool name so that it contains only letters, numbers, underscores, and hyphens.
+    Replaces invalid characters with underscores and limits the length to 64 characters.
     """
     sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
     return sanitized[:64]
@@ -29,6 +32,8 @@ def sanitize_tool_name(name: str) -> str:
 def initialize_mcp(server_name: str = "openapi_proxy_server") -> FastMCP:
     global mcp
     mcp = FastMCP(server_name)
+    # Explicitly set server_name attribute for inclusion in responses.
+    mcp.server_name = server_name
     return mcp
 
 def get_oauth_access_token() -> Optional[str]:
@@ -130,27 +135,46 @@ def get_tool_metadata(ops_info: Dict[str, Any]) -> Dict[str, Any]:
         })
     return {"tools": tools_list}
 
-# Definer metadata_tool som en vanlig funksjon (uten dekoratør)
-def metadata_tool() -> Dict[str, Any]:
-    return get_tool_metadata(operations_info)
+def metadata_tool() -> List[Dict[str, Any]]:
+    tools_list: List[Dict[str, Any]] = []
+    for op_id, info in operations_info.items():
+        safe_op_id = sanitize_tool_name(op_id)
+        properties = {}
+        required: List[str] = []
+        for param in info.get("parameters", []):
+            name = param.get("name")
+            p_type = param.get("schema", {}).get("type", "string")
+            description = param.get("description", "")
+            properties[name] = {"type": p_type, "description": description}
+            if param.get("required", False):
+                required.append(name)
+        input_schema = {"type": "object", "properties": properties}
+        if required:
+            input_schema["required"] = required
+        tools_list.append({
+            "name": safe_op_id,
+            "description": info.get("summary", op_id),
+            "inputSchema": input_schema
+        })
+    return tools_list
 
 def generate_tool_function(operation_id: str, method: str, path: str, parameters: List[Dict[str, Any]],
                            server_url: str, ops_info: Dict[str, Any], client: httpx.Client):
     def tool_func(**kwargs):
         local_path = path
-        ctx = kwargs.pop("ctx", None)
-        if ctx:
-            ctx.info(f"Executing endpoint: {operation_id}")
-        else:
-            logging.info("Executing endpoint: %s", operation_id)
-
-        missing_params: List[str] = []
+        missing_params = []
         for param in parameters:
             if param.get("required", False) and (param["name"] not in kwargs):
                 missing_params.append(param["name"])
         if missing_params:
-            return {"error": f"Missing required parameters: {', '.join(missing_params)}"}
-
+            help_json = get_endpoint_help_json(operation_id, ops_info)
+            return {
+                "jsonrpc": "2.0",
+                "id": 0,
+                "server_name": mcp.server_name if mcp else None,
+                "result": help_json
+            }
+        
         dry_run = kwargs.pop("dry_run", False)
         request_params = {}
         request_headers = {}
@@ -168,7 +192,6 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
                     value = float(value)
                 elif schema_type == "boolean":
                     value = str(value).lower() in ("true", "1", "yes", "y")
-
                 if location == "path":
                     local_path = local_path.replace(f"{{{name}}}", str(value))
                 elif location == "query":
@@ -184,7 +207,7 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
 
         full_url = urljoin(server_url, local_path)
         if dry_run:
-            return {
+            dry_run_output = {
                 "dry_run": True,
                 "description": "Simulated API call. No request sent.",
                 "request": {
@@ -194,6 +217,12 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
                     "params": request_params,
                     "body": request_body
                 }
+            }
+            return {
+                "jsonrpc": "2.0",
+                "id": 0,
+                "server_name": mcp.server_name if mcp else None,
+                "result": dry_run_output
             }
 
         try:
@@ -209,25 +238,19 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
                 response_data = response.json()
             except Exception:
                 response_data = {"raw_response": response.text}
-            if ctx:
-                ctx.info(f"Endpoint {operation_id} executed successfully.")
-            else:
-                logging.info("Endpoint %s executed successfully.", operation_id)
-            return response_data
-        except httpx.HTTPStatusError as e:
-            error_message = f"HTTP error executing endpoint {operation_id}: {e.response.status_code} - {e.response.text}"
-            if ctx:
-                ctx.error(error_message)
-            else:
-                logging.error(error_message)
-            return {"isError": True, "content": [{"type": "text", "text": error_message}]}
+            return {
+                "jsonrpc": "2.0",
+                "id": 0,
+                "server_name": mcp.server_name if mcp else None,
+                "result": response_data
+            }
         except Exception as e:
-            error_message = f"Error executing endpoint {operation_id}: {e}"
-            if ctx:
-                ctx.error(error_message)
-            else:
-                logging.error(error_message)
-            return {"isError": True, "content": [{"type": "text", "text": str(e)}]}
+            return {
+                "jsonrpc": "2.0",
+                "id": 0,
+                "server_name": mcp.server_name if mcp else None,
+                "error": {"code": -32000, "message": str(e)}
+            }
     return tool_func
 
 def get_endpoint_help_json(endpoint: str, ops_info: Dict[str, Any]) -> Dict[str, Any]:
@@ -244,8 +267,95 @@ def get_endpoint_help_json(endpoint: str, ops_info: Dict[str, Any]) -> Dict[str,
             "dry_run": "Simulate execution without making an API call"
         }
     }
-    return {"help": help_info}
+    return {"server_name": mcp.server_name if mcp else None, "help": help_info}
 
+#############################################
+# SSE and JSON-RPC endpoints for Cursor support
+#############################################
+def run_sse_app(mcp_instance: FastMCP):
+    from fastapi import FastAPI, Request
+    from fastapi.responses import StreamingResponse, JSONResponse
+    import uvicorn
+
+    app = FastAPI()
+    global sse_queue
+    sse_queue = asyncio.Queue()
+
+    @app.post("/jsonrpc")
+    async def jsonrpc_endpoint(request: Request):
+        try:
+            data = await request.json()
+        except Exception:
+            return JSONResponse(
+                status_code=400, 
+                content={
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "server_name": mcp_instance.server_name,
+                    "error": {"code": -32700, "message": "Invalid JSON"}
+                }
+            )
+        
+        method = data.get("method")
+        params = data.get("params", {})
+        req_id = data.get("id")
+        if mcp_instance.tools and method in mcp_instance.tools:
+            try:
+                result = mcp_instance.tools[method](**params)
+                response = {
+                    "jsonrpc": "2.0",
+                    "result": result,
+                    "id": req_id,
+                    "server_name": mcp_instance.server_name
+                }
+            except Exception as e:
+                response = {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32000, "message": str(e)},
+                    "id": req_id,
+                    "server_name": mcp_instance.server_name
+                }
+        else:
+            response = {
+                "jsonrpc": "2.0",
+                "error": {"code": -32601, "message": "Method not found"},
+                "id": req_id,
+                "server_name": mcp_instance.server_name
+            }
+        await sse_queue.put(response)
+        return JSONResponse(content=response)
+
+    @app.get("/sse")
+    async def sse_endpoint(request: Request):
+        async def event_generator():
+            initial_response = {
+                "jsonrpc": "2.0",
+                "result": metadata_tool(),
+                "id": 1,
+                "server_name": mcp_instance.server_name
+            }
+            yield f"data: {json.dumps(initial_response)}\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    message = await asyncio.wait_for(sse_queue.get(), timeout=5.0)
+                    yield f"data: {json.dumps(message)}\n\n"
+                except asyncio.TimeoutError:
+                    heartbeat = {
+                        "jsonrpc": "2.0",
+                        "result": {"heartbeat": "keep-alive"},
+                        "id": 0,
+                        "server_name": mcp_instance.server_name
+                    }
+                    yield f"data: {json.dumps(heartbeat)}\n\n"
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+#############################################
+# Register remote API tools into MCP instance
+#############################################
 def register_openapi_tools():
     global operations_info, mcp
     if mcp is None:
@@ -271,15 +381,20 @@ def register_openapi_tools():
         client.close()
     else:
         operations_info = {}
-
-    # Registrer metadata_tool eksplisitt med et gyldig navn
     mcp.add_tool(metadata_tool, name="tools_list", description="List available tools and capabilities")
 
+#############################################
+# Main entry point
+#############################################
 def main():
+    transport = os.environ.get("TRANSPORT", "stdio")
     server_name = os.environ.get("MCP_SERVER", "openapi_proxy_server")
     mcp_instance = initialize_mcp(server_name)
     register_openapi_tools()
-    mcp_instance.run()
+    if transport.lower() == "sse":
+        run_sse_app(mcp_instance)
+    else:
+        mcp_instance.run()
 
 if __name__ == "__main__":
     main()
