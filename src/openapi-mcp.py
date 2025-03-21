@@ -135,7 +135,7 @@ def get_tool_metadata(ops_info: Dict[str, Any]) -> Dict[str, Any]:
         })
     return {"tools": tools_list}
 
-def metadata_tool() -> List[Dict[str, Any]]:
+def metadata_tool(req_id: Any = None) -> Dict[str, Any]:
     tools_list: List[Dict[str, Any]] = []
     for op_id, info in operations_info.items():
         safe_op_id = sanitize_tool_name(op_id)
@@ -156,11 +156,16 @@ def metadata_tool() -> List[Dict[str, Any]]:
             "description": info.get("summary", op_id),
             "inputSchema": input_schema
         })
-    return tools_list
+    return {
+        "jsonrpc": "2.0",
+        "id": req_id,
+        "server_name": mcp.server_name if mcp else None,
+        "result": tools_list
+    }
 
 def generate_tool_function(operation_id: str, method: str, path: str, parameters: List[Dict[str, Any]],
                            server_url: str, ops_info: Dict[str, Any], client: httpx.Client):
-    def tool_func(**kwargs):
+    def tool_func(req_id: Any = None, **kwargs):
         local_path = path
         missing_params = []
         for param in parameters:
@@ -170,7 +175,7 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
             help_json = get_endpoint_help_json(operation_id, ops_info)
             return {
                 "jsonrpc": "2.0",
-                "id": 0,
+                "id": req_id,
                 "server_name": mcp.server_name if mcp else None,
                 "result": help_json
             }
@@ -220,7 +225,7 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
             }
             return {
                 "jsonrpc": "2.0",
-                "id": 0,
+                "id": req_id,
                 "server_name": mcp.server_name if mcp else None,
                 "result": dry_run_output
             }
@@ -240,14 +245,14 @@ def generate_tool_function(operation_id: str, method: str, path: str, parameters
                 response_data = {"raw_response": response.text}
             return {
                 "jsonrpc": "2.0",
-                "id": 0,
+                "id": req_id,
                 "server_name": mcp.server_name if mcp else None,
                 "result": response_data
             }
         except Exception as e:
             return {
                 "jsonrpc": "2.0",
-                "id": 0,
+                "id": req_id,
                 "server_name": mcp.server_name if mcp else None,
                 "error": {"code": -32000, "message": str(e)}
             }
@@ -290,7 +295,7 @@ def run_sse_app(mcp_instance: FastMCP):
                 status_code=400, 
                 content={
                     "jsonrpc": "2.0",
-                    "id": 0,
+                    "id": None,
                     "server_name": mcp_instance.server_name,
                     "error": {"code": -32700, "message": "Invalid JSON"}
                 }
@@ -301,13 +306,10 @@ def run_sse_app(mcp_instance: FastMCP):
         req_id = data.get("id")
         if mcp_instance.tools and method in mcp_instance.tools:
             try:
-                result = mcp_instance.tools[method](**params)
-                response = {
-                    "jsonrpc": "2.0",
-                    "result": result,
-                    "id": req_id,
-                    "server_name": mcp_instance.server_name
-                }
+                # Pass the request ID to the tool function
+                result = mcp_instance.tools[method](req_id=req_id, **params)
+                # The tool function now returns the complete response with correct ID
+                response = result
             except Exception as e:
                 logging.error("Exception occurred: %s", str(e))
                 response = {
@@ -329,12 +331,8 @@ def run_sse_app(mcp_instance: FastMCP):
     @app.get("/sse")
     async def sse_endpoint(request: Request):
         async def event_generator():
-            initial_response = {
-                "jsonrpc": "2.0",
-                "result": metadata_tool(),
-                "id": 1,
-                "server_name": mcp_instance.server_name
-            }
+            # Use a specific ID for the initial metadata message
+            initial_response = metadata_tool(req_id=1)
             yield f"data: {json.dumps(initial_response)}\n\n"
             while True:
                 if await request.is_disconnected():
@@ -343,6 +341,7 @@ def run_sse_app(mcp_instance: FastMCP):
                     message = await asyncio.wait_for(sse_queue.get(), timeout=5.0)
                     yield f"data: {json.dumps(message)}\n\n"
                 except asyncio.TimeoutError:
+                    # Use a specific ID for heartbeat messages
                     heartbeat = {
                         "jsonrpc": "2.0",
                         "result": {"heartbeat": "keep-alive"},
@@ -389,12 +388,15 @@ def register_openapi_tools():
 #############################################
 def main():
     transport = os.environ.get("TRANSPORT", "stdio")
-    server_name = os.environ.get("MCP_SERVER", "openapi_proxy_server")
+    server_name = os.environ.get("SERVER_NAME", "openapi_proxy_server")
+    
     mcp_instance = initialize_mcp(server_name)
     register_openapi_tools()
+    
     if transport.lower() == "sse":
         run_sse_app(mcp_instance)
     else:
+        # Default to stdio transport
         mcp_instance.run()
 
 if __name__ == "__main__":
