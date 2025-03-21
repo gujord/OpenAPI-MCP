@@ -20,6 +20,7 @@ If you like the direction of this project, consider giving it a ⭐ on GitHub!
 - **Error Handling & Help Documentation:** Provides detailed messages for missing parameters, unknown endpoints, or API errors.
 - **Authentication Support:** Supports both direct access tokens and OAuth client_credentials authentication.
 - **LLM Integration via MCP:** Endpoints are exposed as tools that LLMs can invoke. The generic MCP server output is compatible with integrations like Cursor, Windsurf, and Claude Desktop.
+- **Experimental SSE Support:** An experimental SSE implementation attempts to stream JSON-RPC responses (including a welcome notification with the tools list) to clients. **Note:** This SSE implementation is still a work in progress and has not been fully verified with Cursor.
 
 ## Prerequisites
 
@@ -84,7 +85,16 @@ For direct access tokens, set:
 
 The MCP integration now returns JSON-RPC 2.0 responses including a top-level `server_name` field. Endpoints are dynamically registered as MCP tools. Note that tool names must only contain alphanumeric characters, underscores, or hyphens. For example, the metadata tool is registered as `tools_list` (underscore instead of a forward slash).
 
-### Example MCP Config for Cursor
+## Experimental SSE Support
+
+An experimental SSE (Server-Sent Events) implementation is provided. When running in SSE mode, the server:
+
+- Exposes a `/jsonrpc` endpoint to receive JSON-RPC requests.
+- Exposes a `/sse` endpoint that streams JSON-RPC responses and immediately sends a welcome notification containing the tools list.
+
+**Important:** This SSE implementation is still under development and has not been fully verified with Cursor. If you experience issues with tool discovery or streaming responses in Cursor, please be aware that this feature is experimental.
+
+## Example MCP Config for Cursor
 
 Create a file called `.cursor/mcp.json` in your project root (or in your home directory for a global configuration) with the following content:
 
@@ -107,7 +117,7 @@ Create a file called `.cursor/mcp.json` in your project root (or in your home di
 
 Cursor will read this configuration, launch the MCP server using the specified command, and then discover the exposed tools (remember that Cursor supports up to 40 tools). When interacting with the Cursor agent, reference the tool names or descriptions as provided by the MCP server.
 
-### Example MCP Config for Windsurf
+## Example MCP Config for Windsurf
 
 For Windsurf, create a JSON config (typically in `~/.codeium/windsurf/mcp_config.json`) with a similar structure:
 
@@ -142,7 +152,7 @@ Note: Windsurf supports only MCP tools, and each tool invocation may consume cre
 
 ## Usage
 
-### Listing Available Endpoints
+### Standard (Stdio) Mode
 
 List endpoints from the OpenAPI specification. The response is a JSON-RPC 2.0 message including a top-level `server_name` field. Use the updated tool name `tools_list`:
 
@@ -155,20 +165,6 @@ Example with a different API (YAML output example):
 ```bash
 export OPENAPI_URL="https://nvdbapiles.atlas.vegvesen.no/openapi.yaml"
 python3 src/openapi-mcp.py api tools_list --output yaml
-```
-
-### Getting Endpoint Help
-
-Retrieve detailed help on endpoint parameters and usage by passing the keyword `help` after the endpoint name:
-
-```bash
-python3 src/openapi-mcp.py api call-endpoint --name <endpoint_name> help
-```
-
-Example:
-
-```bash
-python3 src/openapi-mcp.py api call-endpoint --name get__compact help
 ```
 
 ### Calling an Endpoint
@@ -185,6 +181,16 @@ To simulate a call without sending a real API request, use the dry-run mode:
 python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10 --dry-run
 ```
 
+### Experimental SSE Mode
+
+To start the server in SSE mode, set the `TRANSPORT` environment variable to `sse` and run the server. This will launch the FastAPI app with `/jsonrpc` and `/sse` endpoints. The `/sse` endpoint streams a welcome notification (including the tools list) and subsequent JSON-RPC responses.
+
+```bash
+export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" TRANSPORT=sse && python3 src/openapi-mcp.py
+```
+
+When you visit [http://127.0.0.1:8000/sse](http://127.0.0.1:8000/sse) in your browser (or when Cursor connects), you should see a JSON-RPC notification containing a welcome message and a list of available tools. **Note:** This SSE support is experimental and still under development.
+
 ## Integration with LLMs via MCP
 
 OpenAPI-MCP is designed to integrate seamlessly with MCP orchestrators:
@@ -192,31 +198,7 @@ OpenAPI-MCP is designed to integrate seamlessly with MCP orchestrators:
 - **Dynamic Registration:** Endpoints from the OpenAPI spec are automatically registered as MCP tools.
 - **LLM Invocation:** LLMs invoke endpoints using the registered operation IDs. All responses conform to JSON-RPC 2.0, making them easily interpretable by the orchestrator.
 - **Generic Server:** The server is language-agnostic and works with various clients (Cursor, Windsurf, Claude Desktop) without additional modification.
-
-This design extends LLM capabilities by providing a standardized and secure method to interact with external APIs.
-
-## Examples
-
-### Example 1: List Endpoints (YAML)
-
-```bash
-export OPENAPI_URL="https://nvdbapiles.atlas.vegvesen.no/openapi.yaml"
-python3 src/openapi-mcp.py api tools_list --output yaml
-```
-
-### Example 2: Get Endpoint Help
-
-```bash
-export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
-python3 src/openapi-mcp.py api call-endpoint --name get__compact help
-```
-
-### Example 3: Call an Endpoint with Parameters
-
-```bash
-export OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger"
-python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 --param lon=10
-```
+- **Experimental SSE Support:** The server attempts to provide SSE streaming of JSON-RPC messages. This feature is experimental and subject to further verification and improvement.
 
 ## Troubleshooting
 
@@ -224,6 +206,7 @@ python3 src/openapi-mcp.py api call-endpoint --name get__compact --param lat=60 
 - **OAuth Errors:** Double-check that all necessary OAuth environment variables are set.
 - **Parameter Issues:** Use the `--dry-run` flag to validate parameters and check for missing or incorrectly formatted values.
 - **Tool Naming:** Tool names must only contain alphanumeric characters, underscores, or hyphens. If you encounter errors related to tool names, verify that you are not using invalid characters (e.g., forward slashes).
+- **SSE Mode:** SSE support is experimental. If tools are not discovered correctly via SSE, try using the standard (stdio) mode or consult the issue tracker.
 
 ## Contributions
 
