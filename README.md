@@ -5,9 +5,9 @@
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 
-![OpenAPI-MCP](OpenAPI-MCP.png)
+![OpenAPI-MCP](img/OpenAPI-MCP.png)
 
-The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between AI agents and external APIs by dynamically translating OpenAPI specifications into standardized MCP tools. This simplifies the integration process, significantly reducing development time and complexity associated with custom API wrappers.
+The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between AI agents and external APIs by dynamically translating OpenAPI specifications into standardized MCP tools. This simplifies integration, eliminating the need for custom API wrappers.
 
 - **Repository:** [https://github.com/gujord/OpenAPI-MCP](https://github.com/gujord/OpenAPI-MCP)
 
@@ -15,16 +15,19 @@ The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between
 
 ## Why MCP?
 
-The Model Context Protocol (MCP), developed by Anthropic, standardizes communication between Large Language Models (LLMs) and external data sources or tools. By acting as a universal interface (like a USB-C port for AI), MCP enables AI agents to interact with diverse APIs seamlessly, without bespoke integration code.
+The Model Context Protocol (MCP), developed by Anthropic, standardizes communication between Large Language Models (LLMs) and external tools. By acting as a universal adapter, MCP enables AI agents to interface with external APIs seamlessly.
+
+---
 
 ## Key Features
 
-- **Dynamic Tool Generation:** Automatically registers OpenAPI endpoints as MCP tools.
-- **Multiple Transport Methods:** Supports both `stdio` and Server-Sent Events (`sse`).
-- **OAuth2 Support:** Secure machine-to-machine interactions with OAuth2 Client Credentials.
-- **Dry Run Mode:** Safely simulate API interactions before live execution.
-- **JSON-RPC 2.0 Compliance:** Robust and clear communication with added `server_name` context.
-- **AI Orchestrator Integration:** Compatible with Cursor, Windsurf, Claude Desktop, and other popular tools.
+- **OpenAPI Integration:** Parses and registers OpenAPI operations as callable tools.
+- **OAuth2 Support:** Handles machine authentication via Client Credentials flow.
+- **Dry Run Mode:** Simulates API calls without execution for inspection.
+- **JSON-RPC 2.0 Support:** Fully compliant request/response structure.
+- **Auto Metadata:** Derives tool names, summaries, and schemas from OpenAPI.
+- **Sanitized Tool Names:** Ensures compatibility with MCP name constraints.
+- **FastMCP Transport:** Optimized for `stdio`, works out-of-the-box with agents.
 
 ---
 
@@ -41,66 +44,39 @@ pip install -r requirements.txt
 
 | Variable              | Description                          | Required | Default                |
 |-----------------------|--------------------------------------|----------|------------------------|
-| `OPENAPI_URL`         | URL of the OpenAPI specification     | Yes      | -                      |
-| `TRANSPORT`           | Communication method (`stdio`, `sse`)| No       | `stdio`                |
-| `SERVER_NAME`         | Custom server identifier             | No       | `openapi_proxy_server` |
-| `OAUTH_CLIENT_ID`     | OAuth Client ID                      | No       | -                      |
-| `OAUTH_CLIENT_SECRET` | OAuth Client Secret                  | No       | -                      |
-| `OAUTH_TOKEN_URL`     | OAuth Token URL                      | No       | -                      |
-| `OAUTH_SCOPE`         | OAuth Scope                          | No       | `api`                  |
+| `OPENAPI_URL`         | URL to the OpenAPI specification     | Yes      | -                      |
+| `SERVER_NAME`         | MCP server name                      | No       | `openapi_proxy_server` |
+| `OAUTH_CLIENT_ID`     | OAuth client ID                      | No       | -                      |
+| `OAUTH_CLIENT_SECRET` | OAuth client secret                  | No       | -                      |
+| `OAUTH_TOKEN_URL`     | OAuth token endpoint URL             | No       | -                      |
+| `OAUTH_SCOPE`         | OAuth scope                          | No       | `api`                  |
 
 ### Running the Server
 ```bash
-# Default (stdio mode)
-python src/openapi-mcp.py
-
-# Custom environment
-OPENAPI_URL=https://api.example.com/openapi.json python src/openapi-mcp.py
-
-# SSE mode
-TRANSPORT=sse python src/openapi-mcp.py
+# Minimal
+OPENAPI_URL=https://api.example.com/openapi.json python src/server.py
 ```
 
 ---
 
 ## How It Works
 
-1. **Load Specification:** Parses the OpenAPI specification.
-2. **Generate Tools:** Converts endpoints into MCP-compatible tools.
-3. **Validate Parameters:** Ensures API call accuracy.
-4. **Handle Authentication:** Manages OAuth tokens securely.
-5. **Execute Requests:** Performs HTTP requests securely via `httpx`.
-6. **Format Response:** Delivers results using JSON-RPC 2.0.
+1. **Parses OpenAPI spec** using `httpx` and `PyYAML` if needed.
+2. **Extracts operations** and generates MCP-compatible tools with proper names.
+3. **Authenticates** using OAuth2 (if credentials are present).
+4. **Builds input schemas** based on OpenAPI parameter definitions.
+5. **Handles calls** via JSON-RPC 2.0 protocol with automatic error responses.
+6. **Supports dry_run** to inspect outgoing requests without invoking them.
 
 ---
 
-## JSON-RPC API (SSE Mode)
+## Built-in Tools
 
-- **`POST /jsonrpc`**: Handles JSON-RPC requests.
-- **`GET /sse`**: Streams JSON-RPC responses and tool metadata.
+These tools are always available:
 
-### Example Request
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "get_users",
-  "params": {"limit": 10, "page": 1},
-  "id": 1
-}
-```
-
-### Example Response
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "server_name": "openapi_proxy_server",
-  "result": {
-    "users": [{"id": 1, "name": "User 1"}],
-    "total": 1
-  }
-}
-```
+- `initialize` – Returns server metadata and protocol version.
+- `tools_list` – Lists all registered tools (from OpenAPI and built-in).
+- `tools_call` – Calls any tool by name with arguments.
 
 ---
 
@@ -110,35 +86,45 @@ TRANSPORT=sse python src/openapi-mcp.py
 ```json
 {
   "mcpServers": {
-    "barentswatch": {
-      "command": "PATH-TO-OPENAPI-MCP/venv/bin/python",
-      "args": ["PATH-TO-OPENAPI-MCP/src/openapi-mcp.py", "server"],
-      "env": {"OPENAPI_URL": "https://live.ais.barentswatch.no/live/openapi/ais/openapi.json"}
+    "petstore3": {
+      "command": "full_path_to_openapi_mcp/venv/bin/python",
+      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "env": {
+        "SERVER_NAME": "petstore3",
+        "OPENAPI_URL": "https://petstore3.swagger.io/api/v3/openapi.json"
+      },
+      "transport": "stdio"
     }
   }
 }
 ```
+![Cursor](img/cursor.png)
 
 ### Windsurf (`~/.codeium/windsurf/mcp_config.json`)
 ```json
 {
   "mcpServers": {
-    "locationforecast": {
-      "command": "bash",
-      "args": ["-c", "source PATH-TO-OPENAPI-MCP/venv/bin/activate && python3 PATH-TO-OPENAPI-MCP/src/openapi-mcp.py server"],
-      "env": {"OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"}
+    "petstore3": {
+      "command": "full_path_to_openapi_mcp/venv/bin/python",
+      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "env": {
+        "SERVER_NAME": "petstore3",
+        "OPENAPI_URL": "https://petstore3.swagger.io/api/v3/openapi.json"
+      },
+      "transport": "stdio"
     }
   }
 }
 ```
+![Windsurf](img/Windsurf.png)
 
 ---
 
 ## Contributing
 
-- Fork and clone
-- Create a branch
-- Submit a pull request
+- Fork this repo
+- Create a new branch
+- Submit a pull request with a clear description
 
 ---
 
@@ -148,7 +134,5 @@ TRANSPORT=sse python src/openapi-mcp.py
 
 ---
 
-This project leverages the concept of "Vibe Coding," harnessing powerful Large Language Models (LLMs) such as Gemini, OpenAI's o3-mini-high, and Claude 3.7, significantly accelerating development and prototyping.
-
-If this tool aids your AI agent development, please give it a ⭐ on GitHub!
-
+This project embraces rapid agent tool integration using LLMs like Claude 3, OpenAI GPT-4, and Gemini.  
+If you find it useful, give it a ⭐ on GitHub!
