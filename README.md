@@ -54,7 +54,7 @@ pip install -r requirements.txt
 ### Running the Server
 ```bash
 # Minimal
-OPENAPI_URL=https://api.example.com/openapi.json python src/server.py
+OPENAPI_URL=https://petstore3.swagger.io/api/v3/openapi.json python src/server.py
 ```
 
 ---
