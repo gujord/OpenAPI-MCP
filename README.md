@@ -116,7 +116,7 @@ These tools are always available:
   }
 }
 ```
-![Windsurf](img/Windsurf.png)
+![Windsurf](img/windsurf.png)
 
 ---
 
