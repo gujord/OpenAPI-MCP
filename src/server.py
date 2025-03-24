@@ -1,27 +1,35 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 Roger Gujord
 
-import os, sys, json, time, re, yaml, logging, httpx
+import os
+import sys
+import json
+import time
+import re
+import yaml
+import logging
+import httpx
 from urllib.parse import urlparse, parse_qsl
 from typing import Any, Dict, List, Optional, Tuple
 from mcp.server.fastmcp import FastMCP
 
 logging.basicConfig(level=logging.INFO)
 
+
 class MCPResource:
     def __init__(self, name: str, schema: dict, description: str):
         self.name = name
         self.schema = schema
         self.description = description
-        # Set the URI as expected by FastMCP resource manager
         self.uri = f"/resource/{name}"
 
+
 class Prompt:
-    # Simple Prompt class to work with FastMCP.add_prompt
     def __init__(self, name: str, content: str, description: str = ""):
         self.name = name
         self.content = content
         self.description = description
+
 
 class OAuthCache:
     def __init__(self):
@@ -37,15 +45,16 @@ class OAuthCache:
         self.token = token
         self.expiry = time.time() + expires_in
 
+
 def singularize_resource(resource: str) -> str:
-    # Simple singularization logic for common cases.
     if resource.endswith("ies"):
         return resource[:-3] + "y"
     elif resource.endswith("sses"):
-        return resource  # e.g. "processes" remains unchanged
+        return resource
     elif resource.endswith("s") and not resource.endswith("ss"):
         return resource[:-1]
     return resource
+
 
 class MCPServer:
     def __init__(self, server_name: str = "openapi_proxy_server"):
@@ -69,10 +78,8 @@ class MCPServer:
         return self.sanitize_tool_name(name)
 
     def convert_schema_to_resource(self, schema: Dict[str, Any]) -> Dict[str, Any]:
-        """Converts an OpenAPI schema to an MCP resource schema."""
         if not schema:
             return {"type": "object", "properties": {}}
-
         properties = {}
         required = schema.get("required", [])
         for prop_name, prop_schema in schema.get("properties", {}).items():
@@ -146,10 +153,10 @@ class MCPServer:
                 spec = yaml.safe_load(resp.text)
         except Exception as e:
             logging.error("Could not load OpenAPI spec: %s", e)
-            sys.exit(1)
+            return {}, "", {}
         if not isinstance(spec, dict) or "paths" not in spec or "info" not in spec:
             logging.error("Invalid OpenAPI spec: Missing required properties")
-            sys.exit(1)
+            return {}, "", {}
         servers = spec.get("servers")
         raw_url = ""
         parsed = urlparse(openapi_url)
@@ -166,14 +173,11 @@ class MCPServer:
             server_url = f"https://{raw_url}"
         else:
             server_url = raw_url
-
         ops_info = {}
         for path, path_item in spec.get("paths", {}).items():
             for method, op in path_item.items():
                 if method.lower() not in {"get", "post", "put", "delete", "patch", "head", "options"}:
                     continue
-
-                # Handle requestBody explicitly for POST/PUT operations
                 if "requestBody" in op:
                     req_body = op["requestBody"]
                     body_schema = {}
@@ -186,14 +190,11 @@ class MCPServer:
                         "schema": body_schema,
                         "description": "Request body"
                     })
-
-                # Map response schema if available (200 response)
                 response_schema = None
                 if "responses" in op and "200" in op["responses"]:
                     resp200 = op["responses"]["200"]
                     if "content" in resp200 and "application/json" in resp200["content"]:
                         response_schema = resp200["content"]["application/json"].get("schema", None)
-
                 raw_op_id = op.get("operationId") or f"{method}_{path.replace('/', '_').replace('{', '').replace('}', '')}"
                 sanitized_op_id = self.sanitize_tool_name(raw_op_id)
                 summary = op.get("description") or op.get("summary") or sanitized_op_id
@@ -238,7 +239,6 @@ class MCPServer:
                 "inputSchema": schema,
                 "parameters": parameters_info
             }
-            # Include responseSchema if available
             if info.get("responseSchema"):
                 tool_meta["responseSchema"] = info["responseSchema"]
             tools.append(tool_meta)
@@ -246,12 +246,18 @@ class MCPServer:
 
     def parse_kwargs_string(self, s: str) -> Dict[str, Any]:
         """
-        Attempts to parse the kwargs string as JSON; falls back to query string parsing.
-        Supports strings starting with a '?' and various JSON variations.
+        Parse a kwargs string. This function automatically strips any surrounding backticks or code fences.
+        It supports:
+          - Standard JSON (with numbers as numbers or strings)
+          - Query string formats using '&'
+          - Comma-separated key/value pairs (e.g. "lat=63.1115,lon=7.7327")
         """
         s = s.strip()
+        s = re.sub(r"^`+|`+$", "", s)  # Remove surrounding backticks
+        s = re.sub(r"^```+|```+$", "", s)  # Remove surrounding triple backticks if present
         if s.startswith('?'):
             s = s[1:]
+        # Try JSON parsing
         try:
             parsed = json.loads(s)
             if isinstance(parsed, dict):
@@ -265,7 +271,23 @@ class MCPServer:
                 return parsed
         except Exception as e:
             logging.debug("JSON parsing with unescaping failed: %s", e)
-        return dict(parse_qsl(s))
+        # Try standard query string parsing (expects '&' delimiter)
+        parsed_qsl = dict(parse_qsl(s))
+        if parsed_qsl:
+            return parsed_qsl
+        # Fallback: if the string contains commas (but no '&'), split on commas manually.
+        if ',' in s and '&' not in s:
+            result = {}
+            pairs = s.split(',')
+            for pair in pairs:
+                pair = pair.strip()
+                if not pair:
+                    continue
+                if '=' in pair:
+                    key, value = pair.split('=', 1)
+                    result[key.strip()] = value.strip()
+            return result
+        return {}
 
     def _prepare_request(
         self,
@@ -278,7 +300,8 @@ class MCPServer:
         ops: Dict[str, Any]
     ) -> Tuple[Optional[Tuple[str, Dict, Dict, Any, bool]], Optional[Dict]]:
         if 'kwargs' in kwargs and isinstance(kwargs['kwargs'], str):
-            raw = kwargs.pop('kwargs').strip('`')
+            raw = kwargs.pop('kwargs')
+            raw = re.sub(r"^`+|`+$", "", raw)
             logging.info("Parsing kwargs string: %s", raw)
             parsed_kwargs = self.parse_kwargs_string(raw)
             kwargs.update(parsed_kwargs)
@@ -342,6 +365,7 @@ class MCPServer:
             if error:
                 return {"jsonrpc": "2.0", "id": req_id, "error": error}
             return {"jsonrpc": "2.0", "id": req_id, "result": result}
+
         def tool_func(req_id: Any = None, **kwargs):
             prep, err = self._prepare_request(req_id, kwargs, parameters, path, server_url, op_id, ops)
             if err:
@@ -412,31 +436,38 @@ class MCPServer:
     def register_openapi_tools(self):
         openapi_url = os.environ.get("OPENAPI_URL")
         if openapi_url:
-            spec, server_url, ops_info = self.load_openapi(openapi_url)
+            try:
+                spec, server_url, ops_info = self.load_openapi(openapi_url)
+            except Exception as e:
+                logging.error("Failed to load OpenAPI spec from %s: %s", openapi_url, e)
+                spec, server_url, ops_info = {}, "", {}
             self.openapi_spec = spec
             self.operations_info = ops_info
             self.register_openapi_resources()
             for op_id, info in ops_info.items():
-                client = httpx.Client()
-                tool_meta = self.get_tool_metadata({op_id: info})["tools"][0]
-                func = self.generate_tool_function(
-                    op_id,
-                    info["method"],
-                    info["path"],
-                    info.get("parameters", []),
-                    server_url,
-                    ops_info,
-                    client
-                )
-                metadata = {
-                    "name": op_id,
-                    "description": info.get("summary", op_id),
-                    "inputSchema": tool_meta["inputSchema"],
-                    "parameters": tool_meta.get("parameters")
-                }
-                if "responseSchema" in tool_meta:
-                    metadata["responseSchema"] = tool_meta["responseSchema"]
-                self.add_tool(op_id, func, metadata["description"], metadata)
+                try:
+                    client = httpx.Client()
+                    tool_meta = self.get_tool_metadata({op_id: info})["tools"][0]
+                    func = self.generate_tool_function(
+                        op_id,
+                        info["method"],
+                        info["path"],
+                        info.get("parameters", []),
+                        server_url,
+                        ops_info,
+                        client
+                    )
+                    metadata = {
+                        "name": op_id,
+                        "description": info.get("summary", op_id),
+                        "inputSchema": tool_meta["inputSchema"],
+                        "parameters": tool_meta.get("parameters")
+                    }
+                    if "responseSchema" in tool_meta:
+                        metadata["responseSchema"] = tool_meta["responseSchema"]
+                    self.add_tool(op_id, func, metadata["description"], metadata)
+                except Exception as e:
+                    logging.error("Failed to register tool for operation %s: %s", op_id, e)
         self.add_tool("initialize", self.initialize_tool, "Initialize MCP server.")
         self.add_tool("tools_list", self.tools_list_tool, "List available tools with extended metadata.")
         self.add_tool("tools_call", self.tools_call_tool, "Call a tool by name with provided arguments.")
@@ -458,7 +489,6 @@ class MCPServer:
             }
 
     def generate_api_prompts(self):
-        """Generates useful prompts for the LLM based on API operations."""
         info = self.openapi_spec.get("info", {})
         general_prompt = f"""
 # API Usage Guide for {info.get('title', 'API')}
@@ -481,7 +511,6 @@ This API provides the following capabilities:
         self.mcp.add_prompt(prompt)
 
     def identify_crud_operations(self) -> Dict[str, Dict[str, str]]:
-        """Identifies CRUD operations for resources based on API paths."""
         crud_ops = {}
         for path, methods in self.openapi_spec.get("paths", {}).items():
             path_parts = [p for p in path.split("/") if p and not p.startswith("{")]
@@ -506,13 +535,12 @@ This API provides the following capabilities:
         return crud_ops
 
     def generate_example_prompts(self):
-        """Generates example prompts for common API usage scenarios."""
         crud_ops = self.identify_crud_operations()
         for resource, operations in crud_ops.items():
             example_prompt = f"""
 # Examples for working with {resource}
 
-Here are some common scenarios for working with {resource} resources:
+Common scenarios for handling {resource} resources:
 """
             if "list" in operations:
                 example_prompt += f"""
@@ -527,7 +555,7 @@ To list all {resource} resources:
                 example_prompt += f"""
 ## Getting a specific {resource}
 
-To get a specific {resource} by ID:
+To retrieve a specific {resource} by ID:
 ```
 {{{{tool.{operations['get']}(id="example-id")}}}}
 ```
@@ -551,6 +579,7 @@ To create a new {resource}:
     def run(self):
         self.mcp.run(transport="stdio")
 
+
 def main():
     server_name = os.environ.get("SERVER_NAME", "openapi_proxy_server")
     server = MCPServer(server_name)
@@ -559,6 +588,6 @@ def main():
     server.generate_example_prompts()
     server.run()
 
+
 if __name__ == "__main__":
     main()
-
