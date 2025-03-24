@@ -1,5 +1,5 @@
 import os, sys, json, time, re, yaml, logging, httpx
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qsl
 from typing import Any, Dict, List, Optional, Tuple
 from mcp.server.fastmcp import FastMCP
 
@@ -29,8 +29,7 @@ class MCPServer:
 
     @staticmethod
     def sanitize_tool_name(name: str) -> str:
-        # Ensure tool names conform to ^[a-zA-Z0-9_-]{1,64}$
-        # Replace invalid chars with underscore, then truncate to 64 chars.
+        # Sørg for at verktøynavn overholder ^[a-zA-Z0-9_-]{1,64}$
         return re.sub(r"[^a-zA-Z0-9_-]", "_", name)[:64]
 
     def get_oauth_access_token(self) -> Optional[str]:
@@ -107,9 +106,8 @@ class MCPServer:
             for method, op in path_item.items():
                 if method.lower() not in {"get", "post", "put", "delete", "patch", "head", "options"}:
                     continue
-                # Original or fallback operationId
+                # Bruk eksisterende operationId eller lag en basert på metoden og stien
                 raw_op_id = op.get("operationId") or f"{method}_{path.replace('/', '_').replace('{', '').replace('}', '')}"
-                # Sanitize to ensure it meets ^[a-zA-Z0-9_-]{1,64}$
                 sanitized_op_id = self.sanitize_tool_name(raw_op_id)
                 summary = op.get("description") or op.get("summary") or sanitized_op_id
                 ops_info[sanitized_op_id] = {
@@ -127,12 +125,20 @@ class MCPServer:
             safe_id = self.sanitize_tool_name(op_id)
             properties = {}
             required = []
+            parameters_info = []
             for param in info.get("parameters", []):
                 name = param.get("name")
                 p_schema = param.get("schema", {})
                 p_type = p_schema.get("type", "string")
                 desc = param.get("description", f"Type: {p_type}")
                 properties[name] = {"type": p_type, "description": desc}
+                parameters_info.append({
+                    "name": name,
+                    "in": param.get("in", "query"),
+                    "required": param.get("required", False),
+                    "type": p_type,
+                    "description": desc
+                })
                 if param.get("required", False):
                     required.append(name)
             schema = {"type": "object", "properties": properties}
@@ -141,7 +147,8 @@ class MCPServer:
             tools.append({
                 "name": safe_id,
                 "description": info.get("summary", op_id),
-                "inputSchema": schema
+                "inputSchema": schema,
+                "parameters": parameters_info  # Utvidet info for hvert tool
             })
         return {"tools": tools}
 
@@ -155,8 +162,18 @@ class MCPServer:
         op_id: str,
         ops: Dict[str, Any]
     ) -> Tuple[Optional[Tuple[str, Dict, Dict, Any, bool]], Optional[Dict]]:
-        local_path = path
-        missing = [p["name"] for p in parameters if p.get("required", False) and p["name"] not in kwargs]
+        # Dersom "kwargs" er en streng med query-parametre, parse den og legg resultatet i kwargs
+        if 'kwargs' in kwargs and isinstance(kwargs['kwargs'], str):
+            qs = kwargs.pop('kwargs').strip('`')
+            logging.info("Parsing query string: %s", qs)
+            for key, value in parse_qsl(qs):
+                kwargs[key] = value
+            logging.info("Etter parsing, kwargs: %s", kwargs)
+
+        expected = [p["name"] for p in parameters if p.get("required", False)]
+        logging.info("Forventede påkrevde parametere: %s", expected)
+        logging.info("Tilgjengelige parametere: %s", list(kwargs.keys()))
+        missing = [name for name in expected if name not in kwargs]
         if missing:
             return None, {
                 "jsonrpc": "2.0",
@@ -186,7 +203,9 @@ class MCPServer:
                         "error": {"code": -32602, "message": f"Parameter '{name}' conversion error: {e}"}
                     }
                 if loc == "path":
-                    local_path = local_path.replace(f"{{{name}}}", str(val))
+                    path_placeholder = f"{{{name}}}"
+                    local_path = path.replace(path_placeholder, str(val))
+                    path = local_path
                 elif loc == "query":
                     req_params[name] = val
                 elif loc == "header":
@@ -197,7 +216,7 @@ class MCPServer:
         if (token := self.get_oauth_access_token()):
             req_headers["Authorization"] = f"Bearer {token}"
         req_headers.setdefault("User-Agent", "OpenAPI-MCP/1.0")
-        full_url = server_url.rstrip("/") + "/" + local_path.lstrip("/")
+        full_url = server_url.rstrip("/") + "/" + path.lstrip("/")
         return (full_url, req_params, req_headers, req_body, dry_run), None
 
     def generate_tool_function(
@@ -307,11 +326,12 @@ class MCPServer:
                 metadata = {
                     "name": op_id,
                     "description": info.get("summary", op_id),
-                    "inputSchema": self.get_tool_metadata({op_id: info})["tools"][0]["inputSchema"]
+                    "inputSchema": self.get_tool_metadata({op_id: info})["tools"][0]["inputSchema"],
+                    "parameters": self.get_tool_metadata({op_id: info})["tools"][0].get("parameters")
                 }
                 self.registered_tools[op_id] = {"function": func, "metadata": metadata}
 
-        # Use sanitized names for built-in tools so they don't violate ^[a-zA-Z0-9_-]{1,64}$
+        # Registrer interne verktøy med sikre navn
         safe_init = self.sanitize_tool_name("initialize")
         self.registered_tools[safe_init] = {
             "function": self.initialize_tool,
@@ -326,7 +346,7 @@ class MCPServer:
             "function": self.tools_list_tool,
             "metadata": {
                 "name": safe_tools_list,
-                "description": "List available tools."
+                "description": "List available tools with extended metadata."
             }
         }
 
@@ -335,13 +355,11 @@ class MCPServer:
             "function": self.tools_call_tool,
             "metadata": {
                 "name": safe_tools_call,
-                "description": "Call a tool."
+                "description": "Call a tool by name with provided arguments."
             }
         }
 
-        # Now add all to the MCP instance
         for name, data in self.registered_tools.items():
-            # Ensure final name is sanitized (some might already be sanitized from load_openapi)
             safe_name = self.sanitize_tool_name(name)
             self.mcp.add_tool(
                 data["function"],
