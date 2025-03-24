@@ -55,13 +55,6 @@ pip install -r requirements.txt
 | `OAUTH_TOKEN_URL`     | OAuth token endpoint URL             | No       | -                      |
 | `OAUTH_SCOPE`         | OAuth scope                          | No       | `api`                  |
 
-### Running the Server
-
-```bash
-# Minimal
-OPENAPI_URL=https://petstore3.swagger.io/api/v3/openapi.json python src/server.py
-```
-
 ---
 
 ## How It Works
@@ -75,6 +68,42 @@ OPENAPI_URL=https://petstore3.swagger.io/api/v3/openapi.json python src/server.p
 7. **Handles query string parsing** for easier parameter passing.
 8. **Performs automatic type conversion** based on OpenAPI schema definitions.
 9. **Supports dry_run** to inspect outgoing requests without invoking them.
+
+```mermaid
+sequenceDiagram
+    participant LLM as LLM (Claude/GPT)
+    participant MCP as OpenAPI-MCP Proxy
+    participant API as External API
+
+    Note over LLM, API: Communication Process
+    
+    LLM->>MCP: 1. Initialize (initialize)
+    MCP-->>LLM: Metadata and tool list
+    
+    LLM->>MCP: 2. Request tools (tools_list)
+    MCP-->>LLM: Detailed tool list from OpenAPI specification
+    
+    LLM->>MCP: 3. Call tool (tools_call)
+    
+    alt With OAuth2
+        MCP->>API: Request OAuth2 token
+        API-->>MCP: Access Token
+    end
+    
+    MCP->>API: 4. Execute API call with proper formatting
+    API-->>MCP: 5. API response (JSON)
+    
+    alt Type Conversion
+        MCP->>MCP: 6. Convert parameters to correct data types
+    end
+    
+    MCP-->>LLM: 7. Formatted response from API
+    
+    alt Dry Run Mode
+        LLM->>MCP: Call with dry_run=true
+        MCP-->>LLM: Display request information without executing call
+    end
+```
 
 ---
 
