@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2025 Roger Gujord
+# https://github.com/gujord/OpenAPI-MCP
 
 import os
 import sys
