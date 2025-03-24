@@ -5,7 +5,7 @@
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 
-![OpenAPI-MCP](img/OpenAPI-MCP.png)
+![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/main/img/OpenAPI-MCP.png)
 
 The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between AI agents and external APIs by dynamically translating OpenAPI specifications into standardized MCP tools. This simplifies integration, eliminating the need for custom API wrappers.
 
@@ -139,7 +139,7 @@ The server automatically converts parameter values to the appropriate type based
 }
 ```
 
-![Cursor](img/cursor.png)
+![Cursor](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/main/img/cursor.png)
 
 ### Windsurf (`~/.codeium/windsurf/mcp_config.json`)
 
@@ -159,7 +159,7 @@ The server automatically converts parameter values to the appropriate type based
 }
 ```
 
-![Windsurf](img/windsurf.png)
+![Windsurf](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/main/img/windsurf.png)
 
 ### Claude Desktop (`~/Library/Application Support/Claude/claude_desktop_config.json`)
 
