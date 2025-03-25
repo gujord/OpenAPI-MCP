@@ -16,9 +16,11 @@ The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between
 
 - **Repository:** [https://github.com/gujord/OpenAPI-MCP](https://github.com/gujord/OpenAPI-MCP)
 
-## Why MCP?
+---
 
-The Model Context Protocol (MCP), developed by Anthropic, standardizes communication between Large Language Models (LLMs) and external tools. By acting as a universal adapter, MCP enables AI agents to interface with external APIs seamlessly.
+If you find it useful, please give it a ⭐ on GitHub!
+
+---
 
 ## Key Features
 
