@@ -173,11 +173,3 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
-# Internal testing (to be released later?)
-bedrock_api.log
-data/
-src/agent.py
-src/api-search.py
-src/bedrock.py
-
-# Your stuff
