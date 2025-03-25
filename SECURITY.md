@@ -5,6 +5,7 @@
 If you discover a security issue in this project, please report it by opening a [[GitHub Issue](https://github.com/gujord/OpenAPI-MCP/issues)].
 
 When reporting, please include:
+
 - A clear description of the issue
 - Steps to reproduce the vulnerability (if applicable)
 - Potential impact
