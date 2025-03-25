@@ -6,7 +6,6 @@
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 ![Python version](https://img.shields.io/badge/Python-3.12-blue)
 
-
 **The OpenAPI-MCP proxy translates OpenAPI specs into MCP tools, enabling AI agents to access external APIs without custom wrappers!**
 
 ![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/refs/heads/main/img/OpenAPI-MCP.png)
