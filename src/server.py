@@ -578,13 +578,25 @@ class MCPServer:
         openapi_url = os.environ.get("OPENAPI_URL")
         if openapi_url:
             try:
+                logging.info("Loading OpenAPI spec from: %s", openapi_url)
                 spec, server_url, ops_info = self.load_openapi(openapi_url)
             except Exception as e:
                 logging.error("Failed to load OpenAPI spec from %s: %s", openapi_url, e)
                 spec, server_url, ops_info = {}, "", {}
             self.openapi_spec = spec
             self.operations_info = ops_info
-            self.register_openapi_resources()
+            
+            # Log OpenAPI info
+            api_title = spec.get("info", {}).get("title", "Unknown API")
+            api_version = spec.get("info", {}).get("version", "Unknown version")
+            logging.info("Loaded API: %s (version: %s)", api_title, api_version)
+            
+            # Register resources and count them
+            resource_count = self.register_openapi_resources()
+            logging.info("Registered %d resources from OpenAPI spec", resource_count)
+            
+            # Register tools and count successful registrations
+            tool_count = 0
             for op_id, info in ops_info.items():
                 try:
                     client = httpx.Client()
@@ -599,14 +611,24 @@ class MCPServer:
                         client
                     )
                     self.add_tool(op_id, func, info.get("summary", op_id), tool_meta)
+                    tool_count += 1
                 except Exception as e:
                     logging.error("Failed to register tool for operation %s: %s", op_id, e)
+                    
+            logging.info("Successfully registered %d/%d API tools", tool_count, len(ops_info))
+        else:
+            logging.warning("No OPENAPI_URL provided, skipping API tools registration")
+            
+        # Register standard MCP tools
         self.add_tool("initialize", self.initialize_tool, "Initialize MCP server.")
         self.add_tool("tools_list", self.tools_list_tool, "List available tools with extended metadata.")
         self.add_tool("tools_call", self.tools_call_tool, "Call a tool by name with provided arguments.")
+        logging.info("Registered 3 standard MCP tools")
 
-    def register_openapi_resources(self):
+    def register_openapi_resources(self) -> int:
         schemas = self.openapi_spec.get("components", {}).get("schemas", {})
+        resource_count = 0
+        
         for schema_name, schema in schemas.items():
             # Prefix resource name with server name
             prefixed_name = f"{self.server_name}_{schema_name}"
@@ -630,8 +652,11 @@ class MCPServer:
                     "tags": ["resource", self.server_name, self.api_category] if self.api_category else ["resource", self.server_name]
                 }
             }
+            resource_count += 1
+            
+        return resource_count
 
-    def generate_api_prompts(self):
+    def generate_api_prompts(self) -> int:
         info = self.openapi_spec.get("info", {})
         api_title = info.get('title', 'API')
         general_prompt = f"""
@@ -656,6 +681,8 @@ This API provides the following capabilities:
         prompt_description = f"[{self.server_name}] General guidance for using {api_title} API"
         prompt = Prompt(prompt_name, general_prompt, prompt_description)
         self.mcp.add_prompt(prompt)
+        
+        return 1  # Return number of prompts created
 
     def identify_crud_operations(self) -> Dict[str, Dict[str, str]]:
         crud_ops = {}
@@ -681,8 +708,10 @@ This API provides the following capabilities:
                     crud_ops[resource]["delete"] = op_id
         return crud_ops
 
-    def generate_example_prompts(self):
+    def generate_example_prompts(self) -> int:
         crud_ops = self.identify_crud_operations()
+        prompt_count = 0
+        
         for resource, operations in crud_ops.items():
             example_prompt = f"""
 # {self.server_name} - Examples for working with {resource}
@@ -727,6 +756,9 @@ To create a new {resource}:
             prompt_description = f"[{self.server_name}] Example usage patterns for {resource} resources"
             prompt = Prompt(prompt_name, example_prompt, prompt_description)
             self.mcp.add_prompt(prompt)
+            prompt_count += 1
+            
+        return prompt_count
 
     def run(self):
         self.mcp.run(transport="stdio")
@@ -739,13 +771,39 @@ def main():
         sys.exit(1)
 
     server_name = os.environ.get("SERVER_NAME", "openapi_proxy_server")
+    logging.info("Starting OpenAPI-MCP server with name: %s", server_name)
+    logging.info("OpenAPI URL: %s", openapi_url)
+    
+    start_time = time.time()
     server = MCPServer(server_name)
     server.register_openapi_tools()
-    server.generate_api_prompts()
-    server.generate_example_prompts()
+    
+    # Generate prompts and log counts
+    general_prompts = server.generate_api_prompts()
+    example_prompts = server.generate_example_prompts()
+    total_prompts = general_prompts + example_prompts
+    logging.info("Generated %d prompts (%d general, %d example prompts)", 
+                 total_prompts, general_prompts, example_prompts)
+    
+    # Count registered tools
+    total_tools = len(server.registered_tools)
+    api_tools = total_tools - 3  # Subtract the 3 standard tools
+    logging.info("Total registered tools: %d (API tools: %d, Standard tools: 3)", 
+                 total_tools, api_tools)
+    
+    # Count registered resources
+    total_resources = len(server.registered_resources)
+    logging.info("Total registered resources: %d", total_resources)
+    
+    # Log summary information
+    setup_time = time.time() - start_time
+    logging.info("Server setup completed in %.2f seconds", setup_time)
+    logging.info("Server %s ready with %d tools, %d resources, and %d prompts", 
+                 server_name, total_tools, total_resources, total_prompts)
+    
+    logging.info("Starting MCP server...")
     server.run()
 
 
 if __name__ == "__main__":
     main()
-    
