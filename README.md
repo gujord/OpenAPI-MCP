@@ -8,13 +8,11 @@
 
 **The OpenAPI-MCP proxy translates OpenAPI specs into MCP tools, enabling AI agents to access external APIs without custom wrappers!**
 
-![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/refs/heads/main/img/OpenAPI-MCP.png)
+![OpenAPI-MCP](img/Open-API-MCP-relations.png)
 
 ## Bridge the gap between AI agents and external APIs
 
 The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between AI agents and external APIs by **dynamically translating** OpenAPI specifications into standardized **MCP tools**, **resources**, and **prompts**. This simplifies integration by eliminating the need for custom API wrappers.
-
-![OpenAPI-MCP](img/OpenAPI-MCP-art.png)
 
 - **Repository:** [https://github.com/gujord/OpenAPI-MCP](https://github.com/gujord/OpenAPI-MCP)
 
@@ -143,6 +141,8 @@ In addition to tools, the proxy server now automatically registers:
 - **Prompts:** Contextual prompts are generated based on API operations to provide usage guidance to LLMs, enhancing their understanding of available endpoints.
 
 This extended metadata improves integration by providing comprehensive API context.
+
+![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/refs/heads/main/img/OpenAPI-MCP.png)
 
 ## Contributing
 
