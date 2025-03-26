@@ -8,7 +8,7 @@
 
 **The OpenAPI-MCP proxy translates OpenAPI specs into MCP tools, enabling AI agents to access external APIs without custom wrappers!**
 
-![OpenAPI-MCP](img/Open-API-MCP-relations.png)
+![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/main/img/Open-API-MCP-relations.png)
 
 ## Bridge the gap between AI agents and external APIs
 
