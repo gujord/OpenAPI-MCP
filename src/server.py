@@ -14,7 +14,7 @@ from urllib.parse import urlparse, parse_qsl
 from typing import Any, Dict, List, Optional, Tuple
 from mcp.server.fastmcp import FastMCP
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.ERROR)
 
 
 class MCPResource:
