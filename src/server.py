@@ -16,6 +16,9 @@ try:
     from .request_handler import RequestHandler
     from .tool_factory import ToolMetadataBuilder, ToolFunctionFactory
     from .schema_converter import SchemaConverter, NameSanitizer, ResourceNameProcessor
+    from .sse_handler import SSEManager, SSEToolFactory, ChunkProcessors
+    from .sse_server import SSEServerManager
+    from .mcp_transport import MCPHttpTransport
     from .exceptions import *
 except ImportError:
     from config import ServerConfig
@@ -24,6 +27,9 @@ except ImportError:
     from request_handler import RequestHandler
     from tool_factory import ToolMetadataBuilder, ToolFunctionFactory
     from schema_converter import SchemaConverter, NameSanitizer, ResourceNameProcessor
+    from sse_handler import SSEManager, SSEToolFactory, ChunkProcessors
+    from sse_server import SSEServerManager
+    from mcp_transport import MCPHttpTransport
     from exceptions import *
 
 
@@ -222,6 +228,34 @@ class MCPServer:
         self.request_handler = RequestHandler(self.authenticator)
         self.resource_manager = None
         
+        # SSE components (deprecated - kept for backward compatibility)
+        self.sse_manager = SSEManager() if config.sse_enabled else None
+        self.sse_server_manager = None
+        self.sse_tool_factory = None
+        
+        if self.sse_manager:
+            self.sse_server_manager = SSEServerManager(
+                self.sse_manager, 
+                config.sse_host, 
+                config.sse_port
+            )
+            self.sse_tool_factory = SSEToolFactory(self.sse_manager)
+            logging.info("SSE support enabled (deprecated - use MCP_HTTP_ENABLED)")
+        
+        # MCP HTTP Transport
+        self.mcp_transport = None
+        if config.mcp_http_enabled:
+            self.mcp_transport = MCPHttpTransport(
+                mcp_server=self,
+                host=config.mcp_http_host,
+                port=config.mcp_http_port,
+                cors_origins=config.mcp_cors_origins,
+                message_size_limit=config.mcp_message_size_limit,
+                batch_timeout=config.mcp_batch_timeout,
+                session_timeout=config.mcp_session_timeout
+            )
+            logging.info(f"MCP HTTP transport enabled on {config.mcp_http_host}:{config.mcp_http_port}")
+        
         # Server state
         self.registered_tools: Dict[str, Dict[str, Any]] = {}
         self.openapi_spec: Dict[str, Any] = {}
@@ -274,6 +308,9 @@ class MCPServer:
                 # Build metadata
                 tool_metadata = self.metadata_builder.build_tool_metadata({op_id: info})[0]
                 
+                # Note: Custom streaming support removed for MCP compliance
+                # MCP transport layer handles streaming via SSE according to official spec
+                
                 # Register tool
                 self._add_tool(op_id, tool_function, info.get("summary", op_id), tool_metadata)
                 tool_count += 1
@@ -288,6 +325,11 @@ class MCPServer:
         self._add_tool("initialize", self._initialize_tool, "Initialize MCP server.")
         self._add_tool("tools_list", self._tools_list_tool, "List available tools with extended metadata.")
         self._add_tool("tools_call", self._tools_call_tool, "Call a tool by name with provided arguments.")
+        
+        # Register SSE-specific tools if enabled
+        if self.sse_manager:
+            self._add_tool("sse_connections", self._sse_connections_tool, "Get SSE connection information.")
+            self._add_tool("sse_broadcast", self._sse_broadcast_tool, "Broadcast message to all SSE connections.")
 
     def register_resources(self) -> int:
         """Register resources from OpenAPI schemas."""
@@ -380,9 +422,138 @@ class MCPServer:
             error = RequestExecutionError(str(e))
             return error.to_json_rpc_error(req_id)
 
+    def _get_chunk_processor(self, operation_info: Dict[str, Any]):
+        """Determine appropriate chunk processor for an operation."""
+        response_schema = operation_info.get("responseSchema", {})
+        
+        # Check for common streaming content types
+        if "application/json" in str(response_schema):
+            return ChunkProcessors.json_lines_processor
+        elif "text/csv" in str(response_schema):
+            return ChunkProcessors.csv_processor
+        else:
+            return ChunkProcessors.text_processor
+
+    def _sse_connections_tool(self, req_id: Any = None, **kwargs):
+        """SSE connections information tool."""
+        if not self.sse_manager:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32601, "message": "SSE not enabled"}
+            }
+        
+        connections_info = []
+        for connection_id, connection in self.sse_manager.connections.items():
+            connections_info.append({
+                "connection_id": connection_id,
+                "connected": connection.connected,
+                "last_heartbeat": connection.last_heartbeat,
+                "heartbeat_interval": connection.heartbeat_interval
+            })
+        
+        return {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "result": {
+                "active_connections": len(connections_info),
+                "connections": connections_info,
+                "sse_server_url": self.sse_server_manager.get_health_url() if self.sse_server_manager else None
+            }
+        }
+
+    def _sse_broadcast_tool(self, req_id: Any = None, message: str = None, **kwargs):
+        """SSE broadcast tool."""
+        if not self.sse_manager:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32601, "message": "SSE not enabled"}
+            }
+        
+        if not message:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": "Missing 'message' parameter"}
+            }
+        
+        import asyncio
+        try:
+            from .sse_handler import SSEEvent, SSEEventType
+        except ImportError:
+            from sse_handler import SSEEvent, SSEEventType
+        
+        async def broadcast():
+            event = SSEEvent(
+                type=SSEEventType.DATA,
+                data={"broadcast_message": message, "from": "mcp_server"}
+            )
+            await self.sse_manager.broadcast_to_all(event)
+        
+        try:
+            # Run the broadcast
+            asyncio.create_task(broadcast())
+            
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "result": {
+                    "success": True,
+                    "message": "Broadcast initiated",
+                    "connection_count": self.sse_manager.get_connection_count()
+                }
+            }
+        except Exception as e:
+            return {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32603, "message": f"Broadcast failed: {e}"}
+            }
+
+    async def start_sse_server(self):
+        """Start the SSE HTTP server if enabled."""
+        if self.sse_server_manager:
+            await self.sse_server_manager.start()
+
+    async def stop_sse_server(self):
+        """Stop the SSE HTTP server if running."""
+        if self.sse_server_manager:
+            await self.sse_server_manager.stop()
+
     def run(self):
         """Run the MCP server."""
-        self.mcp.run(transport="stdio")
+        import asyncio
+        
+        # Choose transport mode
+        if self.mcp_transport:
+            # Run with MCP HTTP transport
+            async def run_with_mcp_transport():
+                try:
+                    await self.mcp_transport.start()
+                except KeyboardInterrupt:
+                    logging.info("Shutting down MCP HTTP transport...")
+                    await self.mcp_transport.stop()
+            
+            asyncio.run(run_with_mcp_transport())
+            
+        elif self.sse_server_manager:
+            # Backward compatibility: Run with deprecated SSE server
+            async def run_with_sse():
+                await self.start_sse_server()
+                # Give SSE server time to start
+                await asyncio.sleep(1)
+                # Run MCP server (this is blocking)
+                self.mcp.run(transport="stdio")
+            
+            try:
+                asyncio.run(run_with_sse())
+            except KeyboardInterrupt:
+                logging.info("Shutting down servers...")
+                asyncio.run(self.stop_sse_server())
+        else:
+            # Default: stdio transport
+            self.mcp.run(transport="stdio")
 
 
 def main():

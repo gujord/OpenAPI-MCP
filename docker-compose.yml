@@ -1,0 +1,49 @@
+version: '3.8'
+
+services:
+  weather-api:
+    build: .
+    container_name: openapi-mcp-weather
+    environment:
+      - OPENAPI_URL=https://api.met.no/weatherapi/locationforecast/2.0/swagger
+      - SERVER_NAME=weather
+      - MCP_HTTP_ENABLED=true
+      - MCP_HTTP_HOST=0.0.0.0
+      - MCP_HTTP_PORT=8001
+    ports:
+      - "8001:8001"
+    networks:
+      - mcp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  petstore-api:
+    build: .
+    container_name: openapi-mcp-petstore
+    environment:
+      - OPENAPI_URL=https://petstore3.swagger.io/api/v3/openapi.json
+      - SERVER_NAME=petstore
+      - MCP_HTTP_ENABLED=true
+      - MCP_HTTP_HOST=0.0.0.0
+      - MCP_HTTP_PORT=8002
+    ports:
+      - "8002:8002"
+    networks:
+      - mcp-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  mcp-network:
+    driver: bridge
+    name: openapi-mcp-network

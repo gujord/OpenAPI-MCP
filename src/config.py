@@ -27,6 +27,20 @@ class ServerConfig:
         self._password = os.environ.get("API_PASSWORD")
         self._login_endpoint = os.environ.get("API_LOGIN_ENDPOINT")
         
+        # SSE configuration (deprecated - use MCP_HTTP_ENABLED)
+        self._sse_enabled = os.environ.get("SSE_ENABLED", "false").lower() == "true"
+        self._sse_host = os.environ.get("SSE_HOST", "127.0.0.1")
+        self._sse_port = int(os.environ.get("SSE_PORT", "8000"))
+        
+        # MCP HTTP Transport configuration
+        self._mcp_http_enabled = os.environ.get("MCP_HTTP_ENABLED", "false").lower() == "true"
+        self._mcp_http_host = os.environ.get("MCP_HTTP_HOST", "127.0.0.1")
+        self._mcp_http_port = int(os.environ.get("MCP_HTTP_PORT", "8000"))
+        self._mcp_cors_origins = os.environ.get("MCP_CORS_ORIGINS", "*").split(",")
+        self._mcp_message_size_limit = os.environ.get("MCP_MESSAGE_SIZE_LIMIT", "4mb")
+        self._mcp_batch_timeout = int(os.environ.get("MCP_BATCH_TIMEOUT", "30"))
+        self._mcp_session_timeout = int(os.environ.get("MCP_SESSION_TIMEOUT", "3600"))
+        
         self._validate_config()
     
     def _validate_config(self):
@@ -106,4 +120,74 @@ class ServerConfig:
             "username": self._username,
             "password": self._password,
             "login_endpoint": self._login_endpoint
+        }
+    
+    @property
+    def sse_enabled(self) -> bool:
+        """Check if SSE is enabled."""
+        return self._sse_enabled
+    
+    @property
+    def sse_host(self) -> str:
+        """Get SSE server host."""
+        return self._sse_host
+    
+    @property
+    def sse_port(self) -> int:
+        """Get SSE server port."""
+        return self._sse_port
+    
+    def get_sse_config(self) -> dict:
+        """Get SSE configuration."""
+        return {
+            "enabled": self._sse_enabled,
+            "host": self._sse_host,
+            "port": self._sse_port
+        }
+    
+    @property
+    def mcp_http_enabled(self) -> bool:
+        """Check if MCP HTTP transport is enabled."""
+        return self._mcp_http_enabled
+    
+    @property
+    def mcp_http_host(self) -> str:
+        """Get MCP HTTP transport host."""
+        return self._mcp_http_host
+    
+    @property
+    def mcp_http_port(self) -> int:
+        """Get MCP HTTP transport port."""
+        return self._mcp_http_port
+    
+    @property
+    def mcp_cors_origins(self) -> list:
+        """Get CORS origins for MCP HTTP transport."""
+        return self._mcp_cors_origins
+    
+    @property
+    def mcp_message_size_limit(self) -> str:
+        """Get message size limit for MCP HTTP transport."""
+        return self._mcp_message_size_limit
+    
+    @property
+    def mcp_batch_timeout(self) -> int:
+        """Get batch timeout for MCP HTTP transport."""
+        return self._mcp_batch_timeout
+    
+    @property
+    def mcp_session_timeout(self) -> int:
+        """Get session timeout for MCP HTTP transport."""
+        return self._mcp_session_timeout
+    
+    def get_mcp_http_config(self) -> dict:
+        """Get MCP HTTP transport configuration."""
+        return {
+            "enabled": self._mcp_http_enabled,
+            "host": self._mcp_http_host,
+            "port": self._mcp_http_port,
+            "cors_origins": self._mcp_cors_origins,
+            "message_size_limit": self._mcp_message_size_limit,
+            "batch_timeout": self._mcp_batch_timeout,
+            "session_timeout": self._mcp_session_timeout
         }

@@ -14,7 +14,11 @@
 
 The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between AI agents and external APIs by **dynamically translating** OpenAPI specifications into standardized **MCP tools**, **resources**, and **prompts**. This simplifies integration by eliminating the need for custom API wrappers.
 
-Built with a **modular architecture** following MCP best practices, the server provides robust error handling, comprehensive logging, and clean separation of concerns for maximum maintainability and extensibility.
+Built with **FastMCP** following official MCP patterns and best practices, the server provides:
+- ✅ **Official FastMCP Integration** - Uses the latest FastMCP framework for optimal performance
+- ✅ **Proper MCP Transport** - Supports stdio, SSE, and streamable HTTP transports
+- ✅ **Modular Architecture** - Clean separation of concerns with dependency injection
+- ✅ **Production Ready** - Robust error handling, comprehensive logging, and type safety
 
 - **Repository:** [https://github.com/gujord/OpenAPI-MCP](https://github.com/gujord/OpenAPI-MCP)
 
@@ -32,6 +36,8 @@ If you find it useful, please give it a ⭐ on GitHub!
 - **Resource Registration:** Automatically converts OpenAPI component schemas into resource objects with defined URIs.
 - **Prompt Generation:** Generates contextual prompts based on API operations to guide LLMs in using the API.
 - **Dual Authentication:** Supports both OAuth2 Client Credentials flow and username/password authentication with automatic token caching.
+- **MCP HTTP Transport:** Official MCP-compliant HTTP streaming transport with JSON-RPC 2.0 over SSE.
+- **Server-Sent Events (SSE):** Legacy streaming support (deprecated - use MCP HTTP transport).
 - **JSON-RPC 2.0 Support:** Fully compliant request/response structure.
 
 ### Advanced Features
@@ -43,6 +49,7 @@ If you find it useful, please give it a ⭐ on GitHub!
 - **Enhanced Parameter Handling:** Automatically converts parameters to correct data types with validation.
 - **Extended Tool Metadata:** Includes detailed parameter information, response schemas, and API categorization.
 - **CRUD Operation Detection:** Automatically identifies and generates example prompts for Create, Read, Update, Delete operations.
+- **MCP-Compliant Streaming:** Official MCP HTTP transport for real-time streaming with proper session management.
 
 ### Developer Experience
 - **Configuration Management:** Centralized environment variable handling with validation and defaults.
@@ -57,20 +64,75 @@ If you find it useful, please give it a ⭐ on GitHub!
 ```bash
 git clone https://github.com/gujord/OpenAPI-MCP.git
 cd OpenAPI-MCP
+python3.10 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+### FastMCP Usage (Recommended)
+
+The server now uses FastMCP for optimal MCP compliance and performance:
+
+```bash
+# Run with stdio transport (for Claude Desktop/Cursor/Windsurf)
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+python src/fastmcp_server.py
+
+# Run with SSE transport (for web clients)
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+MCP_HTTP_ENABLED="true" \
+MCP_HTTP_PORT="8001" \
+python src/fastmcp_server.py
+```
+
+### Multiple API Servers
+
+To run multiple OpenAPI services simultaneously, start each server on different ports:
+
+```bash
+# Terminal 1: Weather API
+source venv/bin/activate && \
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+MCP_HTTP_ENABLED="true" \
+MCP_HTTP_PORT="8001" \
+python src/fastmcp_server.py
+
+# Terminal 2: Petstore API  
+source venv/bin/activate && \
+OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
+SERVER_NAME="petstore" \
+MCP_HTTP_ENABLED="true" \
+MCP_HTTP_PORT="8002" \
+python src/fastmcp_server.py
+```
+
+### Docker Compose (Multiple Services)
+
+For production deployments with multiple APIs:
+
+```bash
+# Start all services
+docker-compose up
+
+# This runs:
+# - Weather API on port 8001  
+# - Petstore API on port 8002
 ```
 
 ## LLM Orchestrator Configuration
 
 For **Claude Desktop**, **Cursor**, and **Windsurf**, use the snippet below and adapt the paths accordingly:
 
-#### Basic Configuration (No Authentication)
+#### Basic Configuration (FastMCP - Recommended)
 ```json
 {
   "mcpServers": {
     "petstore3": {
       "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "args": ["full_path_to_openapi_mcp/src/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "petstore3",
         "OPENAPI_URL": "https://petstore3.swagger.io/api/v3/openapi.json"
@@ -81,13 +143,30 @@ For **Claude Desktop**, **Cursor**, and **Windsurf**, use the snippet below and 
 }
 ```
 
-#### Norwegian Weather API (No Authentication)
+#### Legacy Server (Fallback)
+```json
+{
+  "mcpServers": {
+    "petstore3_legacy": {
+      "command": "full_path_to_openapi_mcp/venv/bin/python",
+      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "env": {
+        "SERVER_NAME": "petstore3_legacy",
+        "OPENAPI_URL": "https://petstore3.swagger.io/api/v3/openapi.json"
+      },
+      "transport": "stdio"
+    }
+  }
+}
+```
+
+#### Norwegian Weather API (FastMCP)
 ```json
 {
   "mcpServers": {
     "weather": {
       "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "args": ["full_path_to_openapi_mcp/src/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "weather",
         "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -137,6 +216,120 @@ For **Claude Desktop**, **Cursor**, and **Windsurf**, use the snippet below and 
 }
 ```
 
+#### Multiple API Servers with MCP HTTP Transport
+
+Configure multiple OpenAPI services to run simultaneously:
+
+```json
+{
+  "mcpServers": {
+    "weather": {
+      "command": "npx",
+      "args": [
+        "mcp-remote", 
+        "http://127.0.0.1:8001/sse"
+      ]
+    },
+    "petstore": {
+      "command": "npx", 
+      "args": [
+        "mcp-remote",
+        "http://127.0.0.1:8002/sse" 
+      ]
+    }
+  }
+}
+```
+
+This configuration gives Claude access to both weather data AND petstore API tools simultaneously, with clear tool naming like `weather_get__compact` and `petstore_addPet`.
+
+#### Single API Server with MCP HTTP Transport
+
+For a single API service:
+
+**Standard SSE Configuration:**
+```json
+{
+  "mcpServers": {
+    "openapi_service": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://127.0.0.1:8001/sse"
+      ]
+    }
+  }
+}
+```
+
+**Streamable HTTP Configuration:**
+```json
+{
+  "mcpServers": {
+    "openapi_service": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://127.0.0.1:8001/mcp"
+      ]
+    }
+  }
+}
+```
+
+**With Debugging (for development):**
+```json
+{
+  "mcpServers": {
+    "openapi_service": {
+      "command": "npx",
+      "args": [
+        "mcp-remote", 
+        "http://127.0.0.1:8001/sse",
+        "--debug"
+      ]
+    }
+  }
+}
+```
+
+**With Custom Transport Strategy:**
+```json
+{
+  "mcpServers": {
+    "openapi_service": {
+      "command": "npx",
+      "args": [
+        "mcp-remote",
+        "http://127.0.0.1:8001/mcp", 
+        "--transport",
+        "streamable-http"
+      ]
+    }
+  }
+}
+```
+
+#### With Legacy SSE Streaming (Deprecated)
+```json
+{
+  "mcpServers": {
+    "streaming_api": {
+      "command": "full_path_to_openapi_mcp/venv/bin/python",
+      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "env": {
+        "SERVER_NAME": "streaming_api",
+        "OPENAPI_URL": "https://api.example.com/openapi.json",
+        "SSE_ENABLED": "true",
+        "SSE_HOST": "127.0.0.1",
+        "SSE_PORT": "8001"
+      },
+      "transport": "stdio"
+    }
+  }
+}
+```
+
 Apply this configuration to the following files:
 
 - Cursor: `~/.cursor/mcp.json`
@@ -144,6 +337,34 @@ Apply this configuration to the following files:
 - Claude Desktop: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 > Replace `full_path_to_openapi_mcp` with your actual installation path.
+
+### Quick Setup for Multiple APIs
+
+Copy the provided example configuration:
+```bash
+cp claude_desktop_config.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
+```
+
+Start both services:
+```bash
+# Terminal 1
+source venv/bin/activate && \
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+MCP_HTTP_ENABLED="true" \
+MCP_HTTP_PORT="8001" \
+python src/fastmcp_server.py
+
+# Terminal 2  
+source venv/bin/activate && \
+OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
+SERVER_NAME="petstore" \
+MCP_HTTP_ENABLED="true" \
+MCP_HTTP_PORT="8002" \
+python src/fastmcp_server.py
+```
+
+Result: Claude gets access to both weather and petstore APIs with prefixed tool names.
 
 ### Environment Configuration
 
@@ -167,6 +388,24 @@ Apply this configuration to the following files:
 | `API_USERNAME`        | API username for authentication      | No       | -                      |
 | `API_PASSWORD`        | API password for authentication      | No       | -                      |
 | `API_LOGIN_ENDPOINT`  | Login endpoint URL                   | No       | Auto-detected          |
+
+#### MCP HTTP Transport (Recommended)
+| Variable              | Description                          | Required | Default                |
+|-----------------------|--------------------------------------|----------|------------------------|
+| `MCP_HTTP_ENABLED`    | Enable MCP HTTP transport            | No       | `false`                |
+| `MCP_HTTP_HOST`       | MCP HTTP server host                 | No       | `127.0.0.1`            |
+| `MCP_HTTP_PORT`       | MCP HTTP server port                 | No       | `8000`                 |
+| `MCP_CORS_ORIGINS`    | CORS origins (comma-separated)       | No       | `*`                    |
+| `MCP_MESSAGE_SIZE_LIMIT` | Message size limit                | No       | `4mb`                  |
+| `MCP_BATCH_TIMEOUT`   | Batch timeout in seconds             | No       | `30`                   |
+| `MCP_SESSION_TIMEOUT` | Session timeout in seconds           | No       | `3600`                 |
+
+#### Legacy SSE Support (Deprecated)
+| Variable              | Description                          | Required | Default                |
+|-----------------------|--------------------------------------|----------|------------------------|
+| `SSE_ENABLED`         | Enable SSE streaming support         | No       | `false`                |
+| `SSE_HOST`            | SSE server host                      | No       | `127.0.0.1`            |
+| `SSE_PORT`            | SSE server port                      | No       | `8000`                 |
 
 ## Architecture
 
@@ -292,6 +531,106 @@ This integration provides:
 Tool: weather_get__compact
 Parameters: lat=59.9139, lon=10.7522
 Result: Current weather and 85-period forecast for Oslo
+```
+
+## MCP HTTP Transport (Official Streaming)
+
+The server now includes official MCP-compliant HTTP transport with Server-Sent Events, following the Model Context Protocol specification for real-time streaming communication.
+
+### Enabling MCP HTTP Transport
+
+```bash
+# Enable MCP HTTP transport
+MCP_HTTP_ENABLED=true \
+MCP_HTTP_HOST=127.0.0.1 \
+MCP_HTTP_PORT=8001 \
+OPENAPI_URL="https://api.example.com/openapi.json" \
+SERVER_NAME="mcp_api" \
+python src/server.py
+```
+
+### MCP Transport Features
+
+- **JSON-RPC 2.0 Compliance**: Full JSON-RPC message handling over HTTP and SSE
+- **Session Management**: Unique session IDs with automatic cleanup
+- **Batch and Streaming Modes**: Support for both immediate and streaming responses
+- **Official MCP Endpoints**: Standard MCP HTTP endpoints according to specification
+- **CORS Support**: Configurable CORS for web client integration
+
+### MCP Endpoints
+
+When MCP HTTP transport is enabled, the following endpoints are available:
+
+**Standard mcp-remote endpoints:**
+- `GET /sse` - SSE endpoint for mcp-remote clients
+- `POST /mcp` - Main MCP JSON-RPC endpoint  
+- `GET /health` - Health check
+
+**Advanced endpoints:**
+- `GET /mcp/sse/{session_id}` - Session-specific SSE stream
+- `DELETE /mcp/sessions/{session_id}` - Terminate specific session
+- `GET /mcp/health` - Detailed health information
+
+## Legacy SSE Streaming (Deprecated)
+
+> **Note**: The legacy SSE implementation is deprecated. Use MCP HTTP transport for official MCP compliance.
+
+For backward compatibility, the legacy SSE streaming is still available but not recommended for new implementations.
+
+### Using MCP HTTP Transport
+
+**With mcp-remote (Recommended):**
+
+Simply configure your MCP client with `mcp-remote` and it handles all the communication:
+
+```json
+{
+  "mcpServers": {
+    "openapi_service": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://127.0.0.1:8001/sse"]
+    }
+  }
+}
+```
+
+**Direct API Usage (Advanced):**
+
+```javascript
+// 1. Connect to SSE stream
+const eventSource = new EventSource('http://127.0.0.1:8001/sse');
+
+eventSource.addEventListener('connected', function(event) {
+  const data = JSON.parse(event.data);
+  console.log('Connected to MCP server:', data.server_info.name);
+  
+  // 2. Send JSON-RPC requests via POST /mcp
+  sendMcpRequest({
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2024-11-05",
+      "capabilities": {}
+    }
+  }, data.session_id);
+});
+
+eventSource.addEventListener('response', function(event) {
+  const response = JSON.parse(event.data);
+  console.log('MCP Response:', response);
+});
+
+async function sendMcpRequest(request, sessionId) {
+  await fetch('http://127.0.0.1:8001/mcp', {
+    method: 'POST',
+    headers: { 
+      'Content-Type': 'application/json',
+      'Mcp-Session-Id': sessionId
+    },
+    body: JSON.stringify(request)
+  });
+}
 ```
 
 ## Development & Testing
