@@ -17,7 +17,9 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:www.ragie.ai)",
       "Bash(timeout:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(pip index:*)",
+      "Bash(pip show:*)"
     ],
     "deny": []
   }
