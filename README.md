@@ -1,5 +1,3 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gujord-openapi-mcp-badge.png)](https://mseep.ai/app/gujord-openapi-mcp)
-
 # OpenAPI to Model Context Protocol (MCP)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -676,3 +674,5 @@ pip install --upgrade -r requirements.txt
 [MIT License](LICENSE)
 
 **If you find it useful, please give it a ⭐ on GitHub!**
+
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gujord-openapi-mcp-badge.png)](https://mseep.ai/app/gujord-openapi-mcp)
