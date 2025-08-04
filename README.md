@@ -673,12 +673,12 @@ pip install --upgrade -r requirements.txt
 
 [MIT License](LICENSE)
 
-**If you find it useful, please give it a ⭐ on GitHub!**
-
 ## Audits
 
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gujord-openapi-mcp-badge.png)](https://mseep.ai/app/gujord-openapi-mcp)
 
 ## Star History
+
+**If you find it useful, please give it a ⭐ on GitHub!**
 
 [![Star History Chart](https://api.star-history.com/svg?repos=gujord/OpenAPI-MCP&type=Date)](https://www.star-history.com/#gujord/OpenAPI-MCP&Date)
