@@ -677,4 +677,3 @@ pip install --upgrade -r requirements.txt
 
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gujord-openapi-mcp-badge.png)](https://mseep.ai/app/gujord-openapi-mcp)
 
-<iframe style="width:100%;height:auto;min-width:600px;min-height:400px;" src="https://www.star-history.com/embed?secret=#gujord/OpenAPI-MCP&Date" frameBorder="0"></iframe>
