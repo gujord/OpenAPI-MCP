@@ -173,3 +173,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+CLAUDE.md
+.gitignore
+IMPLEMENTATION_PLAN.md
+.gitignore

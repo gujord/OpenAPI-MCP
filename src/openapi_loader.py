@@ -2,11 +2,13 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+import json
 import logging
 import yaml
 import httpx
+from pathlib import Path
 from urllib.parse import urlparse
-from typing import Dict, Any, Tuple, List
+from typing import Dict, Any, Tuple, List, Optional
 try:
     from .exceptions import OpenAPIError
 except ImportError:
@@ -17,10 +19,101 @@ class OpenAPILoader:
     """Handles loading and parsing of OpenAPI specifications."""
     
     @staticmethod
-    def load_spec(openapi_url: str) -> Dict[str, Any]:
-        """Load OpenAPI spec from URL."""
+    def load_spec(openapi_url: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Load OpenAPI spec from URL or local file.
+        
+        Args:
+            openapi_url: URL or file path to OpenAPI specification
+            auth_headers: Optional custom headers for HTTP requests
+            
+        Returns:
+            Parsed OpenAPI specification dictionary
+            
+        Raises:
+            OpenAPIError: If spec cannot be loaded or is invalid
+        """
         try:
-            response = httpx.get(openapi_url)
+            # Check if it's a local file or remote URL
+            if not openapi_url.startswith(('http://', 'https://')):
+                return OpenAPILoader._load_local_file(openapi_url)
+            else:
+                return OpenAPILoader._load_remote_url(openapi_url, auth_headers)
+        except (OpenAPIError, FileNotFoundError):
+            raise  # Re-raise these exceptions as-is
+        except Exception as e:
+            raise OpenAPIError(f"Failed to load OpenAPI spec: {e}")
+    
+    @staticmethod
+    def _load_local_file(file_path: str) -> Dict[str, Any]:
+        """Load OpenAPI spec from local file.
+        
+        Args:
+            file_path: Path to local OpenAPI spec file
+            
+        Returns:
+            Parsed OpenAPI specification dictionary
+            
+        Raises:
+            FileNotFoundError: If file doesn't exist
+            OpenAPIError: If file cannot be parsed or is invalid
+        """
+        try:
+            # Resolve path (handles relative and absolute paths)
+            path = Path(file_path).resolve()
+            
+            if not path.exists():
+                raise FileNotFoundError(f"OpenAPI spec file not found: {file_path}")
+            
+            if not path.is_file():
+                raise OpenAPIError(f"Path is not a file: {file_path}")
+            
+            # Check file size limit (10MB)
+            if path.stat().st_size > 10 * 1024 * 1024:
+                raise OpenAPIError(f"OpenAPI spec file too large (>10MB): {file_path}")
+            
+            with open(path, 'r', encoding='utf-8') as f:
+                # Detect format by extension
+                if path.suffix.lower() in ['.yml', '.yaml']:
+                    spec = yaml.safe_load(f)
+                else:
+                    # Default to JSON for .json or unknown extensions
+                    spec = json.load(f)
+            
+            logging.info(f"Loaded local OpenAPI spec from: {path}")
+            
+        except FileNotFoundError:
+            raise  # Re-raise FileNotFoundError as-is
+        except (json.JSONDecodeError, yaml.YAMLError) as e:
+            raise OpenAPIError(f"Failed to parse OpenAPI spec file: {e}")
+        except Exception as e:
+            raise OpenAPIError(f"Failed to load local OpenAPI spec: {e}")
+        
+        # Validate spec structure
+        if not isinstance(spec, dict) or "paths" not in spec or "info" not in spec:
+            raise OpenAPIError("Invalid OpenAPI spec: Missing required properties 'paths' or 'info'")
+        
+        return spec
+    
+    @staticmethod
+    def _load_remote_url(url: str, auth_headers: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Load OpenAPI spec from remote URL.
+        
+        Args:
+            url: HTTP/HTTPS URL to OpenAPI specification
+            auth_headers: Optional custom headers for the request
+            
+        Returns:
+            Parsed OpenAPI specification dictionary
+            
+        Raises:
+            OpenAPIError: If spec cannot be fetched or is invalid
+        """
+        try:
+            # Prepare headers
+            headers = auth_headers.copy() if auth_headers else {}
+            
+            # Make HTTP request
+            response = httpx.get(url, headers=headers)
             response.raise_for_status()
             
             content_type = response.headers.get("Content-Type", "")
@@ -28,12 +121,15 @@ class OpenAPILoader:
                 spec = response.json()
             else:
                 spec = yaml.safe_load(response.text)
+            
+            logging.info(f"Loaded remote OpenAPI spec from: {url}")
                 
         except httpx.HTTPStatusError as e:
             raise OpenAPIError(f"Failed to fetch OpenAPI spec: {e.response.status_code} {e.response.text}")
         except Exception as e:
-            raise OpenAPIError(f"Failed to load OpenAPI spec: {e}")
+            raise OpenAPIError(f"Failed to load remote OpenAPI spec: {e}")
             
+        # Validate spec structure
         if not isinstance(spec, dict) or "paths" not in spec or "info" not in spec:
             raise OpenAPIError("Invalid OpenAPI spec: Missing required properties 'paths' or 'info'")
             

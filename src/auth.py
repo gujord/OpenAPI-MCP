@@ -6,7 +6,7 @@ import os
 import time
 import logging
 import httpx
-from typing import Optional
+from typing import Optional, Dict
 try:
     from .exceptions import AuthenticationError
 except ImportError:
@@ -182,12 +182,53 @@ class OAuthAuthenticator:
         return all([self._client_id, self._client_secret, self._token_url])
 
 
+class CustomHeaderAuthenticator:
+    """Handles custom header authentication for API requests."""
+    
+    def __init__(self, headers: Dict[str, str]):
+        """Initialize with custom headers.
+        
+        Args:
+            headers: Dictionary of custom authentication headers
+        """
+        self._headers = headers.copy() if headers else {}
+        if self._headers:
+            # Don't log header values for security
+            logging.info(f"Custom header authentication configured with {len(self._headers)} headers")
+    
+    def add_auth_headers(self, headers: dict) -> dict:
+        """Add custom authentication headers to request.
+        
+        Args:
+            headers: Existing request headers
+            
+        Returns:
+            Updated headers dictionary
+        """
+        headers.update(self._headers)
+        return headers
+    
+    def is_configured(self) -> bool:
+        """Check if custom headers are configured."""
+        return bool(self._headers)
+    
+    def get_headers(self) -> Dict[str, str]:
+        """Get a copy of the custom headers."""
+        return self._headers.copy()
+
+
 class AuthenticationManager:
     """Manages different authentication methods."""
     
     def __init__(self, config):
+        self._config = config
         self._oauth_auth = None
         self._username_auth = None
+        self._custom_auth = None
+        
+        # Initialize custom header authenticator if configured
+        if config.has_custom_headers():
+            self._custom_auth = CustomHeaderAuthenticator(config.auth_headers)
         
         # Initialize OAuth authenticator if configured
         if config.is_oauth_configured():
@@ -230,15 +271,43 @@ class AuthenticationManager:
         return None
     
     def add_auth_headers(self, headers: dict) -> dict:
-        """Add authentication headers to request."""
+        """Add authentication headers to request.
+        
+        Applies headers in the following order:
+        1. Custom headers (API keys, etc.)
+        2. OAuth/Username token (if available)
+        
+        Args:
+            headers: Existing request headers
+            
+        Returns:
+            Updated headers dictionary
+        """
+        # Apply custom headers first
+        if self._custom_auth and self._custom_auth.is_configured():
+            headers = self._custom_auth.add_auth_headers(headers)
+        
+        # Then add token-based auth if available (may override Authorization header)
         token = self.get_access_token()
         if token:
             headers["Authorization"] = f"Bearer {token}"
+        
         return headers
+    
+    def get_custom_headers(self) -> Dict[str, str]:
+        """Get custom authentication headers if configured.
+        
+        Returns:
+            Dictionary of custom headers or empty dict
+        """
+        if self._custom_auth:
+            return self._custom_auth.get_headers()
+        return {}
     
     def is_configured(self) -> bool:
         """Check if any authentication method is configured."""
         return (
+            (self._custom_auth and self._custom_auth.is_configured()) or
             (self._oauth_auth and self._oauth_auth.is_configured()) or
             (self._username_auth and self._username_auth.is_configured())
         )

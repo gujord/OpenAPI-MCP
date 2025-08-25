@@ -1,0 +1,6 @@
+{
+  "this": "is not",
+  "valid": "OpenAPI",
+  "missing": ["paths", "info"],
+  "malformed": true
+}

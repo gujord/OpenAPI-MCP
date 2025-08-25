@@ -265,8 +265,11 @@ class MCPServer:
     def initialize(self):
         """Initialize the server with OpenAPI spec and components."""
         try:
-            # Load OpenAPI spec
-            self.openapi_spec = OpenAPILoader.load_spec(self.config.openapi_url)
+            # Get custom headers for loading the spec
+            auth_headers = self.authenticator.get_custom_headers() if self.authenticator else None
+            
+            # Load OpenAPI spec with auth headers
+            self.openapi_spec = OpenAPILoader.load_spec(self.config.openapi_url, auth_headers)
             server_url = OpenAPILoader.extract_server_url(self.openapi_spec, self.config.openapi_url)
             
             # Parse operations

@@ -1,0 +1,91 @@
+openapi: 3.0.0
+info:
+  title: Test Weather API
+  version: 1.0.0
+  description: A simple weather API for testing
+servers:
+  - url: https://weather.test.com/api
+paths:
+  /forecast:
+    get:
+      operationId: getForecast
+      summary: Get weather forecast
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: Latitude
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+            format: float
+          description: Longitude
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 7
+          description: Number of days
+      responses:
+        '200':
+          description: Weather forecast data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Forecast'
+  /current:
+    get:
+      operationId: getCurrentWeather
+      summary: Get current weather
+      parameters:
+        - name: location
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Location name
+      responses:
+        '200':
+          description: Current weather data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentWeather'
+components:
+  schemas:
+    Forecast:
+      type: object
+      properties:
+        location:
+          type: string
+        days:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              temperature:
+                type: number
+              conditions:
+                type: string
+    CurrentWeather:
+      type: object
+      properties:
+        location:
+          type: string
+        temperature:
+          type: number
+        conditions:
+          type: string
+        humidity:
+          type: integer
+        windSpeed:
+          type: number

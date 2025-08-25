@@ -4,7 +4,9 @@
 
 import os
 import sys
-from typing import Optional
+import json
+import logging
+from typing import Optional, Dict
 try:
     from .exceptions import ConfigurationError
 except ImportError:
@@ -41,7 +43,45 @@ class ServerConfig:
         self._mcp_batch_timeout = int(os.environ.get("MCP_BATCH_TIMEOUT", "30"))
         self._mcp_session_timeout = int(os.environ.get("MCP_SESSION_TIMEOUT", "3600"))
         
+        # Custom authentication headers
+        self._auth_headers_raw = os.environ.get("MCP_AUTH_HEADERS", "")
+        self._auth_headers = self._parse_auth_headers()
+        
         self._validate_config()
+    
+    def _parse_auth_headers(self) -> Dict[str, str]:
+        """Parse custom authentication headers from environment variable.
+        
+        Supports two formats:
+        1. JSON: {"X-API-Key": "secret", "X-Client-ID": "123"}
+        2. Simple: X-API-Key=secret,X-Client-ID=123
+        
+        Returns:
+            Dictionary of parsed headers
+        """
+        if not self._auth_headers_raw:
+            return {}
+        
+        try:
+            # Try parsing as JSON first
+            headers = json.loads(self._auth_headers_raw)
+            if not isinstance(headers, dict):
+                raise ValueError("MCP_AUTH_HEADERS must be a JSON object")
+            # Ensure all values are strings
+            return {k: str(v) for k, v in headers.items()}
+        except json.JSONDecodeError:
+            # Fall back to simple format: key=value,key2=value2
+            headers = {}
+            for pair in self._auth_headers_raw.split(','):
+                pair = pair.strip()
+                if '=' in pair:
+                    key, value = pair.split('=', 1)
+                    headers[key.strip()] = value.strip()
+            
+            if headers:
+                logging.info(f"Parsed {len(headers)} custom authentication headers")
+            
+            return headers
     
     def _validate_config(self):
         """Validate required configuration."""
@@ -191,3 +231,12 @@ class ServerConfig:
             "batch_timeout": self._mcp_batch_timeout,
             "session_timeout": self._mcp_session_timeout
         }
+    
+    @property
+    def auth_headers(self) -> Dict[str, str]:
+        """Get custom authentication headers."""
+        return self._auth_headers.copy()
+    
+    def has_custom_headers(self) -> bool:
+        """Check if custom authentication headers are configured."""
+        return bool(self._auth_headers)

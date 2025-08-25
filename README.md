@@ -197,6 +197,24 @@ Or create manually:
 
 > **Note:** Replace `/full/path/to/OpenAPI-MCP` with your actual installation path.
 
+#### With Local Spec and Custom Headers
+```json
+{
+  "mcpServers": {
+    "local_api": {
+      "command": "/full/path/to/OpenAPI-MCP/venv/bin/python",
+      "args": ["/full/path/to/OpenAPI-MCP/src/fastmcp_server.py"],
+      "env": {
+        "SERVER_NAME": "local_api",
+        "OPENAPI_URL": "./specs/my-api.yaml",
+        "MCP_AUTH_HEADERS": "{\"X-API-Key\": \"your-key-here\"}"
+      },
+      "transport": "stdio"
+    }
+  }
+}
+```
+
 #### With Username/Password Authentication
 ```json
 {
@@ -391,7 +409,7 @@ Result: Claude gets access to both weather and petstore APIs with prefixed tool 
 #### Core Configuration
 | Variable              | Description                          | Required | Default                |
 |-----------------------|--------------------------------------|----------|------------------------|
-| `OPENAPI_URL`         | URL to the OpenAPI specification     | Yes      | -                      |
+| `OPENAPI_URL`         | URL or local file path to OpenAPI specification | Yes      | -                      |
 | `SERVER_NAME`         | MCP server name                      | No       | `openapi_proxy_server` |
 
 #### OAuth2 Authentication
@@ -408,6 +426,11 @@ Result: Claude gets access to both weather and petstore APIs with prefixed tool 
 | `API_USERNAME`        | API username for authentication      | No       | -                      |
 | `API_PASSWORD`        | API password for authentication      | No       | -                      |
 | `API_LOGIN_ENDPOINT`  | Login endpoint URL                   | No       | Auto-detected          |
+
+#### Custom Authentication Headers
+| Variable              | Description                          | Required | Default                |
+|-----------------------|--------------------------------------|----------|------------------------|
+| `MCP_AUTH_HEADERS`    | Custom authentication headers (JSON or key=value format) | No       | -                      |
 
 #### MCP HTTP Transport (Recommended)
 | Variable              | Description                          | Required | Default                |
@@ -426,6 +449,77 @@ Result: Claude gets access to both weather and petstore APIs with prefixed tool 
 | `SSE_ENABLED`         | Enable SSE streaming support         | No       | `false`                |
 | `SSE_HOST`            | SSE server host                      | No       | `127.0.0.1`            |
 | `SSE_PORT`            | SSE server port                      | No       | `8000`                 |
+
+## 📁 Loading Local OpenAPI Specifications
+
+You can now load OpenAPI specs from your local filesystem instead of requiring remote URLs:
+
+### JSON Format
+```bash
+source venv/bin/activate
+OPENAPI_URL="./specs/my-api.json" \
+SERVER_NAME="local_api" \
+python src/fastmcp_server.py
+```
+
+### YAML Format  
+```bash
+source venv/bin/activate
+OPENAPI_URL="../shared/api.yaml" \
+SERVER_NAME="local_api" \
+python src/fastmcp_server.py
+```
+
+### Absolute Path
+```bash
+source venv/bin/activate
+OPENAPI_URL="/Users/myuser/projects/api-spec.json" \
+SERVER_NAME="local_api" \
+python src/fastmcp_server.py
+```
+
+### Supported Formats
+- **JSON files**: `.json` extension
+- **YAML files**: `.yaml` or `.yml` extension  
+- **Relative paths**: `./path/to/spec.yaml`, `../spec.json`
+- **Absolute paths**: `/full/path/to/spec.yaml`
+
+## 🔑 API Key and Custom Headers
+
+Support for APIs requiring custom headers (API keys, tokens, etc.):
+
+### Using JSON Format
+```bash
+source venv/bin/activate
+MCP_AUTH_HEADERS='{"X-API-Key": "your-api-key", "X-Client-ID": "client123"}' \
+OPENAPI_URL="https://api.example.com/openapi.json" \
+SERVER_NAME="custom_api" \
+python src/fastmcp_server.py
+```
+
+### Using Simple Format
+```bash
+source venv/bin/activate
+MCP_AUTH_HEADERS='X-API-Key=your-api-key,X-Client-ID=client123' \
+OPENAPI_URL="https://api.example.com/openapi.json" \
+SERVER_NAME="custom_api" \
+python src/fastmcp_server.py
+```
+
+### Common API Key Patterns
+- **RapidAPI**: `MCP_AUTH_HEADERS='{"X-RapidAPI-Key": "your-key"}'`
+- **Custom Bearer**: `MCP_AUTH_HEADERS='{"Authorization": "Bearer custom-token"}'`
+- **Multiple Headers**: `MCP_AUTH_HEADERS='{"X-API-Key": "key", "X-API-Secret": "secret"}'`
+
+### Local Spec + Custom Headers
+Combine both features for development:
+```bash
+source venv/bin/activate
+OPENAPI_URL="./test/fixtures/api.json" \
+MCP_AUTH_HEADERS='{"X-API-Key": "dev-key"}' \
+SERVER_NAME="dev_api" \
+python src/fastmcp_server.py
+```
 
 ## 🛠️ Examples & Use Cases
 
