@@ -2,6 +2,8 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+__all__ = ["SchemaConverter", "NameSanitizer", "ResourceNameProcessor"]
+
 import re
 from typing import Dict, Any
 

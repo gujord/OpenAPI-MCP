@@ -2,12 +2,21 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+__all__ = [
+    "MCPResource",
+    "Prompt",
+    "ResourceManager",
+    "PromptGenerator",
+    "MCPServer",
+    "main",
+]
+
 import os
 import sys
 import time
 import logging
 from typing import Dict, Any, List, Optional
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 try:
     from .config import ServerConfig

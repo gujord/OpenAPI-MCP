@@ -6,13 +6,10 @@ import os
 import sys
 import asyncio
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from config import ServerConfig
-from auth import AuthenticationManager
-from openapi_loader import OpenAPILoader
-from fastmcp_server import FastMCPOpenAPIServer
+from openapi_mcp.config import ServerConfig
+from openapi_mcp.auth import AuthenticationManager
+from openapi_mcp.openapi_loader import OpenAPILoader
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
 
 
 async def test_local_spec_with_custom_auth():

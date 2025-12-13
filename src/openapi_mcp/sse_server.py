@@ -2,6 +2,8 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+__all__ = ["SSEHTTPServer", "SSEServerManager", "create_sse_enabled_server"]
+
 import asyncio
 import json
 import logging

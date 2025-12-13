@@ -6,11 +6,8 @@ import os
 import sys
 import json
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from config import ServerConfig
-from auth import AuthenticationManager, CustomHeaderAuthenticator
+from openapi_mcp.config import ServerConfig
+from openapi_mcp.auth import AuthenticationManager, CustomHeaderAuthenticator
 
 
 def test_parse_json_headers():

@@ -2,6 +2,16 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+__all__ = [
+    "MCPServerError",
+    "OpenAPIError",
+    "AuthenticationError",
+    "ParameterError",
+    "ToolNotFoundError",
+    "RequestExecutionError",
+    "ConfigurationError",
+]
+
 
 class MCPServerError(Exception):
     """Base exception for MCP server errors."""

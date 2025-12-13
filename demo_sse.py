@@ -10,10 +10,7 @@ import asyncio
 import httpx
 import json
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-import server
+from openapi_mcp import server
 
 async def demo_sse_streaming():
     """Demonstrate SSE streaming functionality."""

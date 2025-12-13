@@ -148,7 +148,7 @@ OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
 SERVER_NAME="weather" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 
 # Terminal 2: Petstore API  
 source venv/bin/activate && \
@@ -156,7 +156,7 @@ OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
 SERVER_NAME="petstore" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8002" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ### 🐳 Docker Deployment
@@ -207,7 +207,7 @@ Or create manually:
   "mcpServers": {
     "weather": {
       "command": "/full/path/to/OpenAPI-MCP/venv/bin/python",
-      "args": ["/full/path/to/OpenAPI-MCP/src/fastmcp_server.py"],
+      "args": ["/full/path/to/OpenAPI-MCP/src/openapi_mcp/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "weather",
         "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
@@ -226,7 +226,7 @@ Or create manually:
   "mcpServers": {
     "local_api": {
       "command": "/full/path/to/OpenAPI-MCP/venv/bin/python",
-      "args": ["/full/path/to/OpenAPI-MCP/src/fastmcp_server.py"],
+      "args": ["/full/path/to/OpenAPI-MCP/src/openapi_mcp/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "local_api",
         "OPENAPI_URL": "./specs/my-api.yaml",
@@ -244,7 +244,7 @@ Or create manually:
   "mcpServers": {
     "secure_api": {
       "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "args": ["full_path_to_openapi_mcp/src/openapi_mcp/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "secure_api",
         "OPENAPI_URL": "https://api.example.com/openapi.json",
@@ -263,7 +263,7 @@ Or create manually:
   "mcpServers": {
     "oauth_api": {
       "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "args": ["full_path_to_openapi_mcp/src/openapi_mcp/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "oauth_api",
         "OPENAPI_URL": "https://api.example.com/openapi.json",
@@ -377,7 +377,7 @@ For a single API service:
   "mcpServers": {
     "streaming_api": {
       "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/server.py"],
+      "args": ["full_path_to_openapi_mcp/src/openapi_mcp/fastmcp_server.py"],
       "env": {
         "SERVER_NAME": "streaming_api",
         "OPENAPI_URL": "https://api.example.com/openapi.json",
@@ -414,7 +414,7 @@ OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
 SERVER_NAME="weather" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 
 # Terminal 2  
 source venv/bin/activate && \
@@ -422,7 +422,7 @@ OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
 SERVER_NAME="petstore" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8002" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 Result: Claude gets access to both weather and petstore APIs with prefixed tool names.
@@ -482,7 +482,7 @@ You can now load OpenAPI specs from your local filesystem instead of requiring r
 source venv/bin/activate
 OPENAPI_URL="./specs/my-api.json" \
 SERVER_NAME="local_api" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ### YAML Format  
@@ -490,7 +490,7 @@ python src/fastmcp_server.py
 source venv/bin/activate
 OPENAPI_URL="../shared/api.yaml" \
 SERVER_NAME="local_api" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ### Absolute Path
@@ -498,7 +498,7 @@ python src/fastmcp_server.py
 source venv/bin/activate
 OPENAPI_URL="/Users/myuser/projects/api-spec.json" \
 SERVER_NAME="local_api" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ### Supported Formats
@@ -517,7 +517,7 @@ source venv/bin/activate
 MCP_AUTH_HEADERS='{"X-API-Key": "your-api-key", "X-Client-ID": "client123"}' \
 OPENAPI_URL="https://api.example.com/openapi.json" \
 SERVER_NAME="custom_api" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ### Using Simple Format
@@ -526,7 +526,7 @@ source venv/bin/activate
 MCP_AUTH_HEADERS='X-API-Key=your-api-key,X-Client-ID=client123' \
 OPENAPI_URL="https://api.example.com/openapi.json" \
 SERVER_NAME="custom_api" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ### Common API Key Patterns
@@ -541,7 +541,7 @@ source venv/bin/activate
 OPENAPI_URL="./test/fixtures/api.json" \
 MCP_AUTH_HEADERS='{"X-API-Key": "dev-key"}' \
 SERVER_NAME="dev_api" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 ## 🛠️ Examples & Use Cases
@@ -556,7 +556,7 @@ OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
 SERVER_NAME="weather" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 **Available tools:**
@@ -578,7 +578,7 @@ OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
 SERVER_NAME="petstore" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8002" \
-python src/fastmcp_server.py
+python src/openapi_mcp/fastmcp_server.py
 ```
 
 **Available tools:**
@@ -719,7 +719,7 @@ docker run -d \
 **❌ `RequestHandler.prepare_request() missing arguments`**
 ```bash
 # Solution: Use fastmcp_server.py instead of server.py
-python src/fastmcp_server.py  # ✅ Correct
+python src/openapi_mcp/fastmcp_server.py  # ✅ Correct
 ```
 
 **❌ Claude Desktop doesn't see the tools**

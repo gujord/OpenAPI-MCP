@@ -2,6 +2,14 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+__all__ = [
+    "OAuthTokenCache",
+    "UsernamePasswordAuthenticator",
+    "OAuthAuthenticator",
+    "CustomHeaderAuthenticator",
+    "AuthenticationManager",
+]
+
 import os
 import time
 import logging

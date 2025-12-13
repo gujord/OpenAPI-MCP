@@ -7,6 +7,8 @@ MCP-compliant HTTP Stream Transport implementation.
 Follows the official MCP specification for HTTP streaming transport.
 """
 
+__all__ = ["MCPSession", "MCPTransportMode", "MCPHttpTransport"]
+
 import asyncio
 import json
 import logging

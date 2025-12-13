@@ -8,10 +8,8 @@ import json
 import tempfile
 from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
-from openapi_loader import OpenAPILoader, OpenAPIError
+from openapi_mcp.openapi_loader import OpenAPILoader
+from openapi_mcp.exceptions import OpenAPIError
 
 
 def test_load_json_file():

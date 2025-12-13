@@ -2,18 +2,19 @@
 """
 Simple demo of the FastMCP OpenAPI server.
 Shows how to run the server with stdio transport.
+
+Run with: python demo_fastmcp_simple.py
+Or after pip install: openapi-mcp
 """
 import os
 import sys
 import asyncio
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
+from openapi_mcp.config import ServerConfig
 
 async def main():
     """Main demo function."""
-    from fastmcp_server import FastMCPOpenAPIServer
-    from config import ServerConfig
     
     # Configure for Norwegian Weather API (no auth required)
     os.environ.update({

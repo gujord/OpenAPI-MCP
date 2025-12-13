@@ -2,6 +2,16 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+__all__ = [
+    "SSEEventType",
+    "SSEEvent",
+    "SSEConnection",
+    "SSEStreamProcessor",
+    "SSEManager",
+    "SSEToolFactory",
+    "ChunkProcessors",
+]
+
 import asyncio
 import json
 import logging

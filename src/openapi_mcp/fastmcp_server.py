@@ -7,6 +7,8 @@ FastMCP-compliant OpenAPI proxy server.
 Follows FastMCP patterns and best practices.
 """
 
+__all__ = ["FastMCPOpenAPIServer", "OpenAPITool", "main"]
+
 import os
 import sys
 import logging
