@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openapi-mcp-proxy"
-version = "1.0.0"
+version = "1.0.1"
 description = "OpenAPI to Model Context Protocol (MCP) proxy server - dynamically translates OpenAPI specs into MCP tools"
 readme = "README.md"
 license = {text = "MIT"}
