@@ -9,10 +9,7 @@ import asyncio
 import httpx
 import time
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-import server
+from openapi_mcp import server
 
 async def test_sse_functionality():
     """Test SSE functionality."""

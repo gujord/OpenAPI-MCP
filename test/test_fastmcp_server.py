@@ -7,22 +7,20 @@ import sys
 import logging
 import asyncio
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
+from openapi_mcp.config import ServerConfig
 
 async def test_fastmcp_server():
     """Test FastMCP server implementation."""
     print("Testing FastMCP OpenAPI Server")
     print("=" * 40)
-    
+
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-    
+
     try:
         # Test 1: Import and create server
         print("\n1. Testing FastMCP Server Creation")
-        from fastmcp_server import FastMCPOpenAPIServer
-        from config import ServerConfig
         
         os.environ.clear()
         os.environ.update({

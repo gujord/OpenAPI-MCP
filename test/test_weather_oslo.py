@@ -7,18 +7,15 @@ import sys
 import asyncio
 import logging
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
+from openapi_mcp.config import ServerConfig
 
 async def test_oslo_weather():
     """Test getting weather for Oslo."""
     print("Testing Oslo Weather API")
     print("=" * 30)
-    
+
     logging.basicConfig(level=logging.INFO)
-    
-    from fastmcp_server import FastMCPOpenAPIServer
-    from config import ServerConfig
     
     # Configure for weather API
     os.environ.update({

@@ -8,22 +8,20 @@ import logging
 import asyncio
 import httpx
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
+from openapi_mcp.config import ServerConfig
 
 async def test_fastmcp_live():
     """Test FastMCP server running live with SSE."""
     print("Testing FastMCP Live SSE Server")
     print("=" * 40)
-    
+
     # Set up logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-    
+
     try:
         # Test 1: Import and create server
         print("\n1. Creating FastMCP Server")
-        from fastmcp_server import FastMCPOpenAPIServer
-        from config import ServerConfig
         
         os.environ.clear()
         os.environ.update({

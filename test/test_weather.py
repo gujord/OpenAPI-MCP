@@ -6,10 +6,7 @@ import os
 import sys
 import logging
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-import server
+from openapi_mcp import server
 
 def test_weather_api():
     """Test the OpenAPI-MCP server with Norwegian Weather API."""

@@ -1,10 +1,11 @@
 # OpenAPI to Model Context Protocol (MCP)
 
+[![PyPI version](https://badge.fury.io/py/openapi-mcp-proxy.svg)](https://badge.fury.io/py/openapi-mcp-proxy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Repo Size](https://img.shields.io/github/repo-size/gujord/OpenAPI-MCP)
 ![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
 ![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
-![Python version](https://img.shields.io/badge/Python-3.12-blue)
+![Python version](https://img.shields.io/badge/Python-3.10+-blue)
 
 **The OpenAPI-MCP proxy translates OpenAPI specs into MCP tools, enabling AI agents to access external APIs without custom wrappers!**
 
@@ -61,36 +62,59 @@ If you find it useful, please give it a ⭐ on GitHub!
 
 ### Installation
 
+**Option 1: Using uvx (Recommended)**
+```bash
+# Run directly without installation
+uvx openapi-mcp-proxy
+
+# Or with environment variables
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+uvx openapi-mcp-proxy
+```
+
+**Option 2: Using pip**
+```bash
+pip install openapi-mcp-proxy
+
+# Then run
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+openapi-mcp
+```
+
+**Option 3: From source**
 ```bash
 git clone https://github.com/gujord/OpenAPI-MCP.git
 cd OpenAPI-MCP
 python3.12 -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e .
 ```
 
 ### 🎯 Simple Usage
 
-**Option 1: Quick Test (Norwegian Weather API)**
+**Quick Test (Norwegian Weather API)**
 ```bash
-# Activate virtual environment
-source venv/bin/activate
-
-# Run weather API server
+# Using uvx
 OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
 SERVER_NAME="weather" \
-python src/fastmcp_server.py
+uvx openapi-mcp
+
+# Or using installed package
+OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
+SERVER_NAME="weather" \
+openapi-mcp
 ```
 
-**Option 2: HTTP Transport (Recommended for Claude Desktop)**
+**HTTP Transport (Recommended for Claude Desktop)**
 ```bash
 # Start weather API with HTTP transport
-source venv/bin/activate && \
 OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
 SERVER_NAME="weather" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
-python src/fastmcp_server.py
+openapi-mcp
 ```
 
 ### 🔗 Claude Desktop Setup
@@ -102,12 +126,11 @@ cp claude_desktop_config.json ~/Library/Application\ Support/Claude/claude_deskt
 
 **2. Start the weather server:**
 ```bash
-source venv/bin/activate && \
 OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
 SERVER_NAME="weather" \
 MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
-python src/fastmcp_server.py
+openapi-mcp
 ```
 
 **3. Test in Claude Desktop:**
