@@ -4,7 +4,7 @@
 
 """OpenAPI MCP Server - A modular Model Context Protocol server for OpenAPI specifications."""
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __author__ = "Roger Gujord"
 __license__ = "MIT"
 

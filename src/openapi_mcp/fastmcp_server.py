@@ -132,19 +132,19 @@ class FastMCPOpenAPIServer:
     
     def _register_single_tool(self, tool: OpenAPITool):
         """Register a single OpenAPI operation as an MCP tool."""
-        
+
         # Create generic tool function
         generic_tool_function = self._make_generic_tool_function(tool)
-        
+
         # Store function for testing
         tool._function = generic_tool_function
-        
-        # Register the tool with FastMCP
-        self.mcp.add_tool(
-            generic_tool_function,
-            name=f"{self.config.server_name}_{tool.operation_id}",
-            description=f"[{self.config.server_name}] {tool.summary or tool.description}"
-        )
+
+        # Register the tool with FastMCP using the decorator pattern
+        tool_name = f"{self.config.server_name}_{tool.operation_id}"
+        tool_description = f"[{self.config.server_name}] {tool.summary or tool.description}"
+
+        # Use the tool decorator to register with name and description
+        self.mcp.tool(name=tool_name, description=tool_description)(generic_tool_function)
     
     def _make_generic_tool_function(self, tool: OpenAPITool):
         """Create generic tool function for a specific tool."""
@@ -333,18 +333,16 @@ class FastMCPOpenAPIServer:
                 "operations": operations
             }
         
-        # Register management tools
-        self.mcp.add_tool(
-            server_info,
+        # Register management tools using the decorator pattern
+        self.mcp.tool(
             name=f"{self.config.server_name}_server_info",
             description=f"Get information about the {self.config.server_name} API server"
-        )
-        
-        self.mcp.add_tool(
-            list_operations,
-            name=f"{self.config.server_name}_list_operations", 
+        )(server_info)
+
+        self.mcp.tool(
+            name=f"{self.config.server_name}_list_operations",
             description=f"List all available API operations for {self.config.server_name}"
-        )
+        )(list_operations)
     
     def _register_resources(self):
         """Register OpenAPI schemas as MCP resources."""
@@ -362,13 +360,13 @@ class FastMCPOpenAPIServer:
                     return SchemaConverter.convert_openapi_to_mcp_schema(schema_data)
                 return get_schema
             
-            self.mcp.add_resource_fn(
-                make_schema_resource(schema),
+            # Use the resource decorator to register
+            self.mcp.resource(
                 uri=f"schema://{safe_name}",
                 name=safe_name,
                 description=f"[{self.config.server_name}] Schema for {schema_name}",
                 mime_type="application/json"
-            )
+            )(make_schema_resource(schema))
     
     def _register_prompts(self):
         """Register contextual prompts for API usage."""
@@ -400,11 +398,11 @@ This server provides access to {len(self.operations)} API operations from {api_t
             
             return content
         
-        self.mcp.add_prompt(
-            api_usage_prompt,
+        # Use the prompt decorator to register with name and description
+        self.mcp.prompt(
             name=f"{self.config.server_name}_api_usage",
             description=f"Guide for using the {self.api_info.get('title', 'API')} via {self.config.server_name}"
-        )
+        )(api_usage_prompt)
     
     def run_stdio(self):
         """Run server with stdio transport (for MCP clients)."""

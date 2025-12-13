@@ -384,7 +384,8 @@ class MCPServer:
             metadata["serverInfo"] = {"name": self.server_name}
             
         self.registered_tools[safe_name] = {"function": func, "metadata": metadata}
-        self.mcp.add_tool(func, name=safe_name, description=enhanced_description)
+        # Use the tool decorator pattern for FastMCP compatibility
+        self.mcp.tool(name=safe_name, description=enhanced_description)(func)
 
     def _initialize_tool(self, req_id: Any = None, **kwargs):
         """Initialize tool implementation."""
