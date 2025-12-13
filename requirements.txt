@@ -7,8 +7,8 @@ httpcore>=1.0.9
 httpx==0.28.1
 httpx-sse==0.4.0
 idna==3.10
-mcp>=1.5.0
-fastmcp>=2.2.0
+mcp>=1.23.0
+fastmcp>=2.13.0
 pydantic==2.10.6
 pydantic-settings==2.8.1
 pydantic_core==2.27.2
