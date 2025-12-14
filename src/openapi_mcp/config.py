@@ -4,12 +4,15 @@
 
 """Configuration management using pydantic-settings for validation."""
 
-__all__ = ["ServerConfig"]
+__all__ = ["ServerConfig", "load_config_from_file"]
 
 import json
 import logging
-from typing import Optional, Dict
+import os
+from pathlib import Path
+from typing import Optional, Dict, Any
 
+import yaml
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -17,6 +20,37 @@ try:
     from .exceptions import ConfigurationError
 except ImportError:
     from exceptions import ConfigurationError
+
+
+def load_config_from_file(config_path: str) -> Dict[str, Any]:
+    """Load configuration from YAML or JSON file.
+
+    Args:
+        config_path: Path to configuration file (.yaml, .yml, or .json)
+
+    Returns:
+        Dictionary of configuration values
+
+    Raises:
+        ConfigurationError: If file cannot be loaded or parsed
+    """
+    path = Path(config_path)
+
+    if not path.exists():
+        raise ConfigurationError(f"Configuration file not found: {config_path}")
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            if path.suffix.lower() in [".yaml", ".yml"]:
+                return yaml.safe_load(f) or {}
+            elif path.suffix.lower() == ".json":
+                return json.load(f)
+            else:
+                raise ConfigurationError(f"Unsupported config file format: {path.suffix}")
+    except (yaml.YAMLError, json.JSONDecodeError) as e:
+        raise ConfigurationError(f"Failed to parse config file: {e}")
+    except IOError as e:
+        raise ConfigurationError(f"Failed to read config file: {e}")
 
 
 # Default CORS origins for security (localhost only)
@@ -31,14 +65,19 @@ DEFAULT_CORS_ORIGINS = [
 class ServerConfig(BaseSettings):
     """Configuration management for MCP server using pydantic-settings.
 
-    Environment variables are automatically loaded. All settings can be
-    configured via environment variables (e.g., OPENAPI_URL, SERVER_NAME).
+    Configuration can be loaded from:
+    1. Environment variables (e.g., OPENAPI_URL, SERVER_NAME)
+    2. .env file in the current directory
+    3. YAML/JSON config file (via MCP_CONFIG_FILE env var or from_file() method)
 
-    Example:
+    Example with environment variables:
         >>> os.environ["OPENAPI_URL"] = "https://api.example.com/openapi.json"
         >>> config = ServerConfig()
         >>> config.openapi_url
         'https://api.example.com/openapi.json'
+
+    Example with config file:
+        >>> config = ServerConfig.from_file("config.yaml")
     """
 
     model_config = SettingsConfigDict(
@@ -301,3 +340,45 @@ class ServerConfig(BaseSettings):
             "max_delay": self.http_retry_max_delay,
             "timeout": self.http_timeout,
         }
+
+    @classmethod
+    def from_file(cls, config_path: str) -> "ServerConfig":
+        """Load configuration from a YAML or JSON file.
+
+        The file values will be merged with environment variables,
+        with environment variables taking precedence.
+
+        Args:
+            config_path: Path to configuration file (.yaml, .yml, or .json)
+
+        Returns:
+            ServerConfig instance
+
+        Raises:
+            ConfigurationError: If file cannot be loaded or parsed
+
+        Example config.yaml:
+            openapi_url: "https://api.example.com/openapi.json"
+            server_name: "my_api"
+            mcp_debug: true
+            http_timeout: 60
+        """
+        file_config = load_config_from_file(config_path)
+
+        # Convert keys to uppercase for env var compatibility
+        env_style_config = {}
+        for key, value in file_config.items():
+            # Handle nested config (e.g., oauth.client_id -> OAUTH_CLIENT_ID)
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    env_key = f"{key}_{sub_key}".upper()
+                    env_style_config[env_key] = sub_value
+            else:
+                env_style_config[key.upper()] = value
+
+        # Set environment variables from file config (env vars take precedence)
+        for key, value in env_style_config.items():
+            if key not in os.environ and value is not None:
+                os.environ[key] = str(value)
+
+        return cls()

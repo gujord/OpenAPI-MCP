@@ -2,7 +2,7 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
-__all__ = ["KwargsParser", "ParameterProcessor", "RequestHandler"]
+__all__ = ["KwargsParser", "PathSanitizer", "ParameterProcessor", "RequestHandler"]
 
 import re
 import json
@@ -49,7 +49,7 @@ class KwargsParser:
             if isinstance(parsed, dict):
                 logging.debug("Standard JSON parsing succeeded")
                 return parsed
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError) as e:
             logging.debug("Standard JSON parsing failed: %s", e)
 
         # Try with various unescaping methods
@@ -64,7 +64,7 @@ class KwargsParser:
                 if isinstance(parsed, dict):
                     logging.debug("%s succeeded", method_name)
                     return parsed
-            except Exception as e:
+            except (json.JSONDecodeError, ValueError) as e:
                 logging.debug("%s failed: %s", method_name, e)
 
         # Try extracting JSON substring
@@ -77,7 +77,7 @@ class KwargsParser:
                     if isinstance(parsed, dict):
                         logging.debug("Extracted JSON substring parsing succeeded")
                         return parsed
-                except Exception:
+                except (json.JSONDecodeError, ValueError):
                     continue
 
         # Try standard query string parsing
@@ -112,6 +112,49 @@ class KwargsParser:
 
         logging.warning("All parsing methods failed for string: %s", s)
         return {}
+
+
+class PathSanitizer:
+    """Sanitizes path parameters to prevent path traversal attacks."""
+
+    # Allowed characters: alphanumeric, hyphen, underscore, dot (but not ..)
+    SAFE_PATH_PATTERN = re.compile(r"^[a-zA-Z0-9_\-\.]+$")
+
+    @staticmethod
+    def sanitize_path_parameter(value: Any, param_name: str) -> str:
+        """
+        Sanitize a path parameter value to prevent path traversal attacks.
+
+        Args:
+            value: The parameter value to sanitize
+            param_name: Name of the parameter (for error messages)
+
+        Returns:
+            Sanitized string value
+
+        Raises:
+            ParameterError: If the value contains dangerous characters
+        """
+        str_value = str(value)
+
+        # Check for path traversal attempts
+        if ".." in str_value:
+            raise ParameterError(f"Path parameter '{param_name}' contains invalid sequence '..'")
+
+        # Check for directory separators
+        if "/" in str_value or "\\" in str_value:
+            raise ParameterError(f"Path parameter '{param_name}' contains invalid path separator")
+
+        # Check for null bytes
+        if "\x00" in str_value:
+            raise ParameterError(f"Path parameter '{param_name}' contains null byte")
+
+        # Validate against allowed pattern (optional, can be strict or permissive)
+        # For now, we allow URL-safe characters
+        if not str_value:
+            raise ParameterError(f"Path parameter '{param_name}' cannot be empty")
+
+        return str_value
 
 
 class ParameterProcessor:
@@ -211,9 +254,9 @@ class RequestHandler:
 
         except ParameterError as e:
             return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": str(e)}}
-        except Exception as e:
-            logging.error("Unexpected error preparing request: %s", e)
-            return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32603, "message": f"Internal error: {e}"}}
+        except (KeyError, ValueError, TypeError) as e:
+            logging.error("Error preparing request: %s", e)
+            return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Invalid parameter: {e}"}}
 
     def _process_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Process and parse kwargs."""
@@ -254,12 +297,14 @@ class RequestHandler:
         return None
 
     def _replace_path_parameters(self, path: str, kwargs: Dict[str, Any], parameters: List[Dict[str, Any]]) -> str:
-        """Replace path parameters in URL path."""
+        """Replace path parameters in URL path with sanitized values."""
         processed_path = path
 
         for param in parameters:
             if param.get("in") == "path" and param["name"] in kwargs:
                 placeholder = f"{{{param['name']}}}"
-                processed_path = processed_path.replace(placeholder, str(kwargs[param["name"]]))
+                # Sanitize path parameter to prevent path traversal attacks
+                sanitized_value = PathSanitizer.sanitize_path_parameter(kwargs[param["name"]], param["name"])
+                processed_path = processed_path.replace(placeholder, sanitized_value)
 
         return processed_path

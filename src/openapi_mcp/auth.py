@@ -101,8 +101,10 @@ class UsernamePasswordAuthenticator:
 
         except httpx.HTTPStatusError as e:
             raise AuthenticationError(f"Login failed: {e.response.status_code} {e.response.text}")
-        except Exception as e:
-            raise AuthenticationError(f"Failed to authenticate: {e}")
+        except httpx.RequestError as e:
+            raise AuthenticationError(f"Login request failed: {e}")
+        except (KeyError, ValueError, TypeError) as e:
+            raise AuthenticationError(f"Failed to parse login response: {e}")
 
     def add_auth_headers(self, headers: dict) -> dict:
         """Add authentication headers to request."""
@@ -168,8 +170,10 @@ class OAuthAuthenticator:
 
         except httpx.HTTPStatusError as e:
             raise AuthenticationError(f"OAuth token request failed: {e.response.status_code} {e.response.text}")
-        except Exception as e:
-            raise AuthenticationError(f"Failed to obtain OAuth token: {e}")
+        except httpx.RequestError as e:
+            raise AuthenticationError(f"OAuth token request failed: {e}")
+        except (KeyError, ValueError, TypeError) as e:
+            raise AuthenticationError(f"Failed to parse OAuth response: {e}")
 
     def add_auth_headers(self, headers: dict) -> dict:
         """Add authentication headers to request."""

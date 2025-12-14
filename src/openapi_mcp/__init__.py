@@ -4,7 +4,7 @@
 
 """OpenAPI MCP Server - A modular Model Context Protocol server for OpenAPI specifications."""
 
-__version__ = "1.0.2"
+__version__ = "1.0.4"
 __author__ = "Roger Gujord"
 __license__ = "MIT"
 
@@ -17,6 +17,19 @@ from openapi_mcp.exceptions import (
     AuthenticationError,
     RequestExecutionError,
     ToolNotFoundError,
+)
+from openapi_mcp.types import (
+    OperationMetadata,
+    ParameterDefinition,
+    OAuthConfig,
+    UsernameAuthConfig,
+    SSEConfig,
+    MCPHTTPConfig,
+    HTTPRetryConfig,
+    ToolMetadata,
+    RequestInfo,
+    JSONRPCError,
+    JSONRPCResponse,
 )
 
 __all__ = [
@@ -32,4 +45,16 @@ __all__ = [
     "AuthenticationError",
     "RequestExecutionError",
     "ToolNotFoundError",
+    # Type definitions
+    "OperationMetadata",
+    "ParameterDefinition",
+    "OAuthConfig",
+    "UsernameAuthConfig",
+    "SSEConfig",
+    "MCPHTTPConfig",
+    "HTTPRetryConfig",
+    "ToolMetadata",
+    "RequestInfo",
+    "JSONRPCError",
+    "JSONRPCResponse",
 ]

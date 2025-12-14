@@ -5,72 +5,77 @@ Test script to validate the OpenAPI-MCP server functionality.
 import os
 import sys
 import logging
+import asyncio
+import pytest
 
-from openapi_mcp import server
+from openapi_mcp.config import ServerConfig
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
 
-def test_server():
+
+@pytest.mark.asyncio
+async def test_server():
     """Test the OpenAPI-MCP server with Petstore API."""
     print("Testing OpenAPI-MCP Server with Petstore API")
     print("=" * 50)
-    
+
     # Set up logging
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-    
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+    # Save original env
+    original_env = os.environ.copy()
+
     try:
         # Test configuration
-        os.environ['OPENAPI_URL'] = 'https://petstore3.swagger.io/api/v3/openapi.json'
-        os.environ['SERVER_NAME'] = 'petstore3'
-        
-        config = server.ServerConfig()
-        print(f"✓ Configuration loaded: {config.server_name}")
-        
+        os.environ["OPENAPI_URL"] = "https://petstore3.swagger.io/api/v3/openapi.json"
+        os.environ["SERVER_NAME"] = "petstore3"
+
+        config = ServerConfig()
+        print(f"  Configuration loaded: {config.server_name}")
+
         # Test server initialization
-        srv = server.MCPServer(config)
-        srv.initialize()
-        print(f"✓ Server initialized successfully")
-        print(f"  - API: {srv.openapi_spec.get('info', {}).get('title', 'Unknown')}")
-        print(f"  - Operations parsed: {len(srv.operations_info)}")
-        
-        # Test tool registration
-        api_tools = srv.register_openapi_tools()
-        srv.register_standard_tools()
-        print(f"✓ Tools registered: {api_tools} API tools, {len(srv.registered_tools)} total")
-        
-        # Test resource registration
-        resources = srv.register_resources()
-        print(f"✓ Resources registered: {resources}")
-        
-        # Test prompt generation
-        prompts = srv.generate_prompts()
-        print(f"✓ Prompts generated: {prompts}")
-        
-        # Test tool listing
-        tools_list = srv._tools_list_tool('test-id')
-        print(f"✓ Tools list: {len(tools_list['result']['tools'])} tools available")
-        
-        # Test dry run
-        tool_func = srv.registered_tools['petstore3_findPetsByStatus']['function']
-        dry_run = tool_func(req_id='test', status='available', dry_run=True)
-        print("✓ Dry run test successful")
+        srv = FastMCPOpenAPIServer(config)
+        await srv.initialize()
+        print("  Server initialized successfully")
+        print(f"  - API: {srv.api_info.get('title', 'Unknown')}")
+        print(f"  - Operations parsed: {len(srv.operations)}")
+
+        assert len(srv.operations) > 0, "Should have operations parsed"
+
+        # Test that tools are registered with FastMCP
+        print(f"  Operations registered: {len(srv.operations)}")
+
+        # Test dry run functionality
+        find_pets_tool = None
+        for op in srv.operations:
+            if "findPetsByStatus" in op.operation_id:
+                find_pets_tool = op
+                break
+
+        assert find_pets_tool is not None, "Should find the findPetsByStatus tool"
+
+        # Test the tool function
+        tool_func = srv._create_tool_function(find_pets_tool)
+        dry_run = await tool_func(status="available", dry_run=True)
+        print("  Dry run test successful")
+        assert "result" in dry_run
+        assert dry_run["result"]["dry_run"] is True
         print(f"  - URL: {dry_run['result']['request']['url']}")
         print(f"  - Method: {dry_run['result']['request']['method']}")
-        
+
         # Test real API call
-        real_call = tool_func(req_id='test', status='available')
-        if 'result' in real_call and 'data' in real_call['result']:
-            data = real_call['result']['data']
-            print(f"✓ Real API call successful: Found {len(data)} pets")
-        
+        real_call = await tool_func(status="available")
+        if "result" in real_call and "data" in real_call["result"]:
+            data = real_call["result"]["data"]
+            print(f"  Real API call successful: Found {len(data)} pets")
+
         print("\n" + "=" * 50)
-        print("✅ All tests passed! Server is working correctly.")
-        return True
-        
-    except Exception as e:
-        print(f"\n❌ Test failed: {e}")
-        import traceback
-        traceback.print_exc()
-        return False
+        print("All tests passed! Server is working correctly.")
+
+    finally:
+        # Restore original env
+        os.environ.clear()
+        os.environ.update(original_env)
+
 
 if __name__ == "__main__":
-    success = test_server()
-    sys.exit(0 if success else 1)
+    asyncio.run(test_server())

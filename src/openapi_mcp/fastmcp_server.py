@@ -216,9 +216,12 @@ class FastMCPOpenAPIServer:
             self.logger.info(f"Initialized OpenAPI proxy for {api_title}")
             self.logger.info(f"Registered {len(self.operations)} API operations as tools")
 
-        except Exception as e:
+        except (OpenAPIError, FileNotFoundError) as e:
             self.logger.error(f"Failed to initialize server: {e}")
             raise
+        except (httpx.RequestError, ValueError, KeyError) as e:
+            self.logger.error(f"Failed to initialize server: {e}")
+            raise RuntimeError(f"Server initialization failed: {e}") from e
 
     def _register_tools(self):
         """Register OpenAPI operations as FastMCP tools using decorators."""
@@ -325,10 +328,21 @@ class FastMCPOpenAPIServer:
 
                 # Make HTTP request with retry logic
                 retry_config = self.config.get_http_retry_config()
-                self.logger.debug(
-                    f"Executing {tool.method.upper()} {full_url} "
-                    f"(timeout={retry_config['timeout']}s, max_retries={retry_config['max_retries']})"
-                )
+
+                # Log request details (hide sensitive headers in non-debug mode)
+                if self.config.debug:
+                    safe_headers = {k: v for k, v in req_headers.items() if k.lower() not in ("authorization", "x-api-key")}
+                    self.logger.info(
+                        f"REQUEST: {tool.method.upper()} {full_url}\n"
+                        f"  Headers: {safe_headers}\n"
+                        f"  Params: {req_params}\n"
+                        f"  Body: {req_body}"
+                    )
+                else:
+                    self.logger.debug(
+                        f"Executing {tool.method.upper()} {full_url} "
+                        f"(timeout={retry_config['timeout']}s, max_retries={retry_config['max_retries']})"
+                    )
                 async with httpx.AsyncClient(timeout=retry_config["timeout"]) as client:
 
                     async def make_request():
@@ -345,13 +359,22 @@ class FastMCPOpenAPIServer:
                         max_delay=retry_config["max_delay"],
                         logger=self.logger,
                     )
-                    self.logger.debug(f"Response: {response.status_code} ({len(response.content)} bytes)")
-
                     # Handle response
                     try:
                         response_data = response.json()
                     except (ValueError, json.JSONDecodeError):
                         response_data = response.text
+
+                    # Log response details
+                    if self.config.debug:
+                        response_preview = str(response_data)[:500] if response_data else "(empty)"
+                        self.logger.info(
+                            f"RESPONSE: {response.status_code} ({len(response.content)} bytes)\n"
+                            f"  Headers: {dict(response.headers)}\n"
+                            f"  Body: {response_preview}..."
+                        )
+                    else:
+                        self.logger.debug(f"Response: {response.status_code} ({len(response.content)} bytes)")
 
                     return {
                         "jsonrpc": "2.0",
@@ -363,12 +386,26 @@ class FastMCPOpenAPIServer:
                         },
                     }
 
-            except Exception as e:
+            except httpx.HTTPStatusError as e:
+                self.logger.error(f"Tool {tool.operation_id} HTTP error: {e.response.status_code}")
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id or "unknown",
+                    "error": {"code": -32603, "message": f"HTTP error {e.response.status_code}: {e.response.text[:200]}"},
+                }
+            except httpx.RequestError as e:
+                self.logger.error(f"Tool {tool.operation_id} request error: {e}")
+                return {
+                    "jsonrpc": "2.0",
+                    "id": req_id or "unknown",
+                    "error": {"code": -32603, "message": f"Request failed: {str(e)}"},
+                }
+            except (ValueError, KeyError, TypeError) as e:
                 self.logger.error(f"Tool {tool.operation_id} error: {e}")
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id or "unknown",
-                    "error": {"code": -32603, "message": f"Internal error: {str(e)}"},
+                    "error": {"code": -32602, "message": f"Invalid parameter: {str(e)}"},
                 }
 
         return generic_tool_function
@@ -583,7 +620,13 @@ def main():
             logging.info("Starting FastMCP stdio server")
             server.run_stdio()
 
-    except Exception as e:
+    except ConfigurationError as e:
+        logging.error(f"Configuration error: {e}")
+        sys.exit(1)
+    except (OpenAPIError, FileNotFoundError) as e:
+        logging.error(f"Failed to load OpenAPI spec: {e}")
+        sys.exit(1)
+    except RuntimeError as e:
         logging.error(f"Failed to start server: {e}")
         sys.exit(1)
 

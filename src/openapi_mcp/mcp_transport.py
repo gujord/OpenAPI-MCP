@@ -39,14 +39,22 @@ class MCPSession:
     last_activity: float = field(default_factory=time.time)
     message_history: List[Dict[str, Any]] = field(default_factory=list)
     active: bool = True
+    max_history_size: int = 100  # Maximum number of messages to keep
 
     def update_activity(self):
         """Update last activity timestamp."""
         self.last_activity = time.time()
 
     def add_message(self, message: Dict[str, Any]):
-        """Add message to history."""
+        """Add message to history with size limit to prevent memory leaks."""
         self.message_history.append({**message, "timestamp": time.time()})
+        # Trim history if it exceeds the limit (keep most recent messages)
+        if len(self.message_history) > self.max_history_size:
+            self.message_history = self.message_history[-self.max_history_size:]
+
+    def clear_history(self):
+        """Clear message history to free memory."""
+        self.message_history.clear()
 
     def is_expired(self, max_age: int = 3600) -> bool:
         """Check if session is expired."""

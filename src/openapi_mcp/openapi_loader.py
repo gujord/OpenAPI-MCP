@@ -43,7 +43,7 @@ class OpenAPILoader:
                 return OpenAPILoader._load_remote_url(openapi_url, auth_headers)
         except (OpenAPIError, FileNotFoundError):
             raise  # Re-raise these exceptions as-is
-        except Exception as e:
+        except (httpx.RequestError, json.JSONDecodeError, yaml.YAMLError) as e:
             raise OpenAPIError(f"Failed to load OpenAPI spec: {e}")
 
     @staticmethod
@@ -88,8 +88,8 @@ class OpenAPILoader:
             raise  # Re-raise FileNotFoundError as-is
         except (json.JSONDecodeError, yaml.YAMLError) as e:
             raise OpenAPIError(f"Failed to parse OpenAPI spec file: {e}")
-        except Exception as e:
-            raise OpenAPIError(f"Failed to load local OpenAPI spec: {e}")
+        except (IOError, OSError) as e:
+            raise OpenAPIError(f"Failed to read OpenAPI spec file: {e}")
 
         # Validate spec structure
         if not isinstance(spec, dict) or "paths" not in spec or "info" not in spec:
@@ -129,8 +129,10 @@ class OpenAPILoader:
 
         except httpx.HTTPStatusError as e:
             raise OpenAPIError(f"Failed to fetch OpenAPI spec: {e.response.status_code} {e.response.text}")
-        except Exception as e:
-            raise OpenAPIError(f"Failed to load remote OpenAPI spec: {e}")
+        except httpx.RequestError as e:
+            raise OpenAPIError(f"Failed to fetch OpenAPI spec: {e}")
+        except (json.JSONDecodeError, yaml.YAMLError) as e:
+            raise OpenAPIError(f"Failed to parse remote OpenAPI spec: {e}")
 
         # Validate spec structure
         if not isinstance(spec, dict) or "paths" not in spec or "info" not in spec:
