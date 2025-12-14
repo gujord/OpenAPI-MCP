@@ -2,243 +2,302 @@
 # Copyright (c) 2025 Roger Gujord
 # https://github.com/gujord/OpenAPI-MCP
 
+"""Configuration management using pydantic-settings for validation."""
+
 __all__ = ["ServerConfig"]
 
-import os
-import sys
 import json
 import logging
 from typing import Optional, Dict
+
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
 try:
     from .exceptions import ConfigurationError
 except ImportError:
     from exceptions import ConfigurationError
 
 
-class ServerConfig:
-    """Configuration management for MCP server."""
-    
-    def __init__(self):
-        self._openapi_url = os.environ.get("OPENAPI_URL")
-        self._server_name = os.environ.get("SERVER_NAME", "openapi_proxy_server")
-        self._oauth_client_id = os.environ.get("OAUTH_CLIENT_ID")
-        self._oauth_client_secret = os.environ.get("OAUTH_CLIENT_SECRET")
-        self._oauth_token_url = os.environ.get("OAUTH_TOKEN_URL")
-        self._oauth_scope = os.environ.get("OAUTH_SCOPE", "api")
-        
-        # Username/password authentication
-        self._username = os.environ.get("API_USERNAME")
-        self._password = os.environ.get("API_PASSWORD")
-        self._login_endpoint = os.environ.get("API_LOGIN_ENDPOINT")
-        
-        # SSE configuration (deprecated - use MCP_HTTP_ENABLED)
-        self._sse_enabled = os.environ.get("SSE_ENABLED", "false").lower() == "true"
-        self._sse_host = os.environ.get("SSE_HOST", "127.0.0.1")
-        self._sse_port = int(os.environ.get("SSE_PORT", "8000"))
-        
-        # MCP HTTP Transport configuration
-        self._mcp_http_enabled = os.environ.get("MCP_HTTP_ENABLED", "false").lower() == "true"
-        self._mcp_http_host = os.environ.get("MCP_HTTP_HOST", "127.0.0.1")
-        self._mcp_http_port = int(os.environ.get("MCP_HTTP_PORT", "8000"))
-        self._mcp_cors_origins = os.environ.get("MCP_CORS_ORIGINS", "*").split(",")
-        self._mcp_message_size_limit = os.environ.get("MCP_MESSAGE_SIZE_LIMIT", "4mb")
-        self._mcp_batch_timeout = int(os.environ.get("MCP_BATCH_TIMEOUT", "30"))
-        self._mcp_session_timeout = int(os.environ.get("MCP_SESSION_TIMEOUT", "3600"))
-        
-        # Custom authentication headers
-        self._auth_headers_raw = os.environ.get("MCP_AUTH_HEADERS", "")
-        self._auth_headers = self._parse_auth_headers()
-        
-        self._validate_config()
-    
-    def _parse_auth_headers(self) -> Dict[str, str]:
-        """Parse custom authentication headers from environment variable.
-        
-        Supports two formats:
-        1. JSON: {"X-API-Key": "secret", "X-Client-ID": "123"}
-        2. Simple: X-API-Key=secret,X-Client-ID=123
-        
-        Returns:
-            Dictionary of parsed headers
-        """
-        if not self._auth_headers_raw:
-            return {}
-        
+# Default CORS origins for security (localhost only)
+DEFAULT_CORS_ORIGINS = [
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080",
+]
+
+
+class ServerConfig(BaseSettings):
+    """Configuration management for MCP server using pydantic-settings.
+
+    Environment variables are automatically loaded. All settings can be
+    configured via environment variables (e.g., OPENAPI_URL, SERVER_NAME).
+
+    Example:
+        >>> os.environ["OPENAPI_URL"] = "https://api.example.com/openapi.json"
+        >>> config = ServerConfig()
+        >>> config.openapi_url
+        'https://api.example.com/openapi.json'
+    """
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # Required configuration
+    openapi_url: str = Field(
+        ...,
+        description="URL or path to OpenAPI specification (required)",
+        alias="OPENAPI_URL",
+    )
+
+    # Server identification
+    server_name: str = Field(
+        default="openapi_proxy_server",
+        description="Name of the MCP server",
+        alias="SERVER_NAME",
+    )
+
+    # OAuth configuration
+    oauth_client_id: Optional[str] = Field(
+        default=None,
+        description="OAuth client ID",
+        alias="OAUTH_CLIENT_ID",
+    )
+    oauth_client_secret: Optional[str] = Field(
+        default=None,
+        description="OAuth client secret",
+        alias="OAUTH_CLIENT_SECRET",
+    )
+    oauth_token_url: Optional[str] = Field(
+        default=None,
+        description="OAuth token endpoint URL",
+        alias="OAUTH_TOKEN_URL",
+    )
+    oauth_scope: str = Field(
+        default="api",
+        description="OAuth scope",
+        alias="OAUTH_SCOPE",
+    )
+
+    # Username/password authentication
+    username: Optional[str] = Field(
+        default=None,
+        description="API username for authentication",
+        alias="API_USERNAME",
+    )
+    password: Optional[str] = Field(
+        default=None,
+        description="API password for authentication",
+        alias="API_PASSWORD",
+    )
+    login_endpoint: Optional[str] = Field(
+        default=None,
+        description="API login endpoint",
+        alias="API_LOGIN_ENDPOINT",
+    )
+
+    # SSE configuration (deprecated)
+    sse_enabled: bool = Field(
+        default=False,
+        description="Enable SSE transport (deprecated, use MCP_HTTP_ENABLED)",
+        alias="SSE_ENABLED",
+    )
+    sse_host: str = Field(
+        default="127.0.0.1",
+        description="SSE server host",
+        alias="SSE_HOST",
+    )
+    sse_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        description="SSE server port",
+        alias="SSE_PORT",
+    )
+
+    # MCP HTTP Transport configuration
+    mcp_http_enabled: bool = Field(
+        default=False,
+        description="Enable MCP HTTP transport",
+        alias="MCP_HTTP_ENABLED",
+    )
+    mcp_http_host: str = Field(
+        default="127.0.0.1",
+        description="MCP HTTP server host",
+        alias="MCP_HTTP_HOST",
+    )
+    mcp_http_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        description="MCP HTTP server port",
+        alias="MCP_HTTP_PORT",
+    )
+    mcp_cors_origins: str = Field(
+        default=",".join(DEFAULT_CORS_ORIGINS),
+        description="Comma-separated CORS origins (use * for all)",
+        alias="MCP_CORS_ORIGINS",
+    )
+    mcp_message_size_limit: str = Field(
+        default="4mb",
+        description="Maximum message size limit",
+        alias="MCP_MESSAGE_SIZE_LIMIT",
+    )
+    mcp_batch_timeout: int = Field(
+        default=30,
+        ge=1,
+        le=300,
+        description="Batch request timeout in seconds",
+        alias="MCP_BATCH_TIMEOUT",
+    )
+    mcp_session_timeout: int = Field(
+        default=3600,
+        ge=60,
+        le=86400,
+        description="Session timeout in seconds",
+        alias="MCP_SESSION_TIMEOUT",
+    )
+
+    # Custom authentication headers
+    auth_headers_raw: str = Field(
+        default="",
+        description="Custom auth headers (JSON or key=value,key2=value2 format)",
+        alias="MCP_AUTH_HEADERS",
+    )
+
+    # HTTP retry configuration
+    http_max_retries: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum number of HTTP request retries",
+        alias="HTTP_MAX_RETRIES",
+    )
+    http_retry_base_delay: float = Field(
+        default=1.0,
+        ge=0.1,
+        le=10.0,
+        description="Base delay between retries in seconds",
+        alias="HTTP_RETRY_BASE_DELAY",
+    )
+    http_retry_max_delay: float = Field(
+        default=30.0,
+        ge=1.0,
+        le=120.0,
+        description="Maximum delay between retries in seconds",
+        alias="HTTP_RETRY_MAX_DELAY",
+    )
+    http_timeout: float = Field(
+        default=30.0,
+        ge=5.0,
+        le=300.0,
+        description="HTTP request timeout in seconds",
+        alias="HTTP_TIMEOUT",
+    )
+
+    # Debug mode
+    debug: bool = Field(
+        default=False,
+        description="Enable debug logging",
+        alias="MCP_DEBUG",
+    )
+
+    # Parsed auth headers (computed field)
+    _auth_headers: Dict[str, str] = {}
+
+    @model_validator(mode="after")
+    def parse_auth_headers(self) -> "ServerConfig":
+        """Parse custom authentication headers after initialization."""
+        if not self.auth_headers_raw:
+            self._auth_headers = {}
+            return self
+
         try:
             # Try parsing as JSON first
-            headers = json.loads(self._auth_headers_raw)
+            headers = json.loads(self.auth_headers_raw)
             if not isinstance(headers, dict):
                 raise ValueError("MCP_AUTH_HEADERS must be a JSON object")
-            # Ensure all values are strings
-            return {k: str(v) for k, v in headers.items()}
+            self._auth_headers = {k: str(v) for k, v in headers.items()}
         except json.JSONDecodeError:
             # Fall back to simple format: key=value,key2=value2
             headers = {}
-            for pair in self._auth_headers_raw.split(','):
+            for pair in self.auth_headers_raw.split(","):
                 pair = pair.strip()
-                if '=' in pair:
-                    key, value = pair.split('=', 1)
+                if "=" in pair:
+                    key, value = pair.split("=", 1)
                     headers[key.strip()] = value.strip()
-            
+
             if headers:
                 logging.info(f"Parsed {len(headers)} custom authentication headers")
-            
-            return headers
-    
-    def _validate_config(self):
-        """Validate required configuration."""
-        if not self._openapi_url:
+
+            self._auth_headers = headers
+
+        return self
+
+    @field_validator("openapi_url")
+    @classmethod
+    def validate_openapi_url(cls, v: str) -> str:
+        """Validate OpenAPI URL is not empty."""
+        if not v or not v.strip():
             raise ConfigurationError("OPENAPI_URL environment variable is required")
-    
-    @property
-    def openapi_url(self) -> str:
-        """Get OpenAPI spec URL."""
-        return self._openapi_url
-    
-    @property
-    def server_name(self) -> str:
-        """Get server name."""
-        return self._server_name
-    
-    @property
-    def oauth_client_id(self) -> Optional[str]:
-        """Get OAuth client ID."""
-        return self._oauth_client_id
-    
-    @property
-    def oauth_client_secret(self) -> Optional[str]:
-        """Get OAuth client secret."""
-        return self._oauth_client_secret
-    
-    @property
-    def oauth_token_url(self) -> Optional[str]:
-        """Get OAuth token URL."""
-        return self._oauth_token_url
-    
-    @property
-    def oauth_scope(self) -> str:
-        """Get OAuth scope."""
-        return self._oauth_scope
-    
+        return v.strip()
+
     def is_oauth_configured(self) -> bool:
         """Check if OAuth is properly configured."""
-        return all([
-            self._oauth_client_id,
-            self._oauth_client_secret,
-            self._oauth_token_url
-        ])
-    
-    @property
-    def username(self) -> Optional[str]:
-        """Get API username."""
-        return self._username
-    
-    @property
-    def password(self) -> Optional[str]:
-        """Get API password."""
-        return self._password
-    
-    @property
-    def login_endpoint(self) -> Optional[str]:
-        """Get API login endpoint."""
-        return self._login_endpoint
-    
+        return all([self.oauth_client_id, self.oauth_client_secret, self.oauth_token_url])
+
     def is_username_auth_configured(self) -> bool:
         """Check if username/password authentication is configured."""
-        return bool(self._username and self._password)
-    
+        return bool(self.username and self.password)
+
     def get_oauth_config(self) -> dict:
         """Get OAuth configuration as dictionary."""
         return {
-            "client_id": self._oauth_client_id,
-            "client_secret": self._oauth_client_secret,
-            "token_url": self._oauth_token_url,
-            "scope": self._oauth_scope
+            "client_id": self.oauth_client_id,
+            "client_secret": self.oauth_client_secret,
+            "token_url": self.oauth_token_url,
+            "scope": self.oauth_scope,
         }
-    
+
     def get_username_auth_config(self) -> dict:
         """Get username/password authentication configuration."""
-        return {
-            "username": self._username,
-            "password": self._password,
-            "login_endpoint": self._login_endpoint
-        }
-    
-    @property
-    def sse_enabled(self) -> bool:
-        """Check if SSE is enabled."""
-        return self._sse_enabled
-    
-    @property
-    def sse_host(self) -> str:
-        """Get SSE server host."""
-        return self._sse_host
-    
-    @property
-    def sse_port(self) -> int:
-        """Get SSE server port."""
-        return self._sse_port
-    
+        return {"username": self.username, "password": self.password, "login_endpoint": self.login_endpoint}
+
     def get_sse_config(self) -> dict:
         """Get SSE configuration."""
-        return {
-            "enabled": self._sse_enabled,
-            "host": self._sse_host,
-            "port": self._sse_port
-        }
-    
-    @property
-    def mcp_http_enabled(self) -> bool:
-        """Check if MCP HTTP transport is enabled."""
-        return self._mcp_http_enabled
-    
-    @property
-    def mcp_http_host(self) -> str:
-        """Get MCP HTTP transport host."""
-        return self._mcp_http_host
-    
-    @property
-    def mcp_http_port(self) -> int:
-        """Get MCP HTTP transport port."""
-        return self._mcp_http_port
-    
-    @property
-    def mcp_cors_origins(self) -> list:
-        """Get CORS origins for MCP HTTP transport."""
-        return self._mcp_cors_origins
-    
-    @property
-    def mcp_message_size_limit(self) -> str:
-        """Get message size limit for MCP HTTP transport."""
-        return self._mcp_message_size_limit
-    
-    @property
-    def mcp_batch_timeout(self) -> int:
-        """Get batch timeout for MCP HTTP transport."""
-        return self._mcp_batch_timeout
-    
-    @property
-    def mcp_session_timeout(self) -> int:
-        """Get session timeout for MCP HTTP transport."""
-        return self._mcp_session_timeout
-    
+        return {"enabled": self.sse_enabled, "host": self.sse_host, "port": self.sse_port}
+
     def get_mcp_http_config(self) -> dict:
         """Get MCP HTTP transport configuration."""
         return {
-            "enabled": self._mcp_http_enabled,
-            "host": self._mcp_http_host,
-            "port": self._mcp_http_port,
-            "cors_origins": self._mcp_cors_origins,
-            "message_size_limit": self._mcp_message_size_limit,
-            "batch_timeout": self._mcp_batch_timeout,
-            "session_timeout": self._mcp_session_timeout
+            "enabled": self.mcp_http_enabled,
+            "host": self.mcp_http_host,
+            "port": self.mcp_http_port,
+            "cors_origins": self.mcp_cors_origins.split(","),
+            "message_size_limit": self.mcp_message_size_limit,
+            "batch_timeout": self.mcp_batch_timeout,
+            "session_timeout": self.mcp_session_timeout,
         }
-    
+
     @property
     def auth_headers(self) -> Dict[str, str]:
         """Get custom authentication headers."""
         return self._auth_headers.copy()
-    
+
     def has_custom_headers(self) -> bool:
         """Check if custom authentication headers are configured."""
         return bool(self._auth_headers)
+
+    def get_http_retry_config(self) -> dict:
+        """Get HTTP retry configuration."""
+        return {
+            "max_retries": self.http_max_retries,
+            "base_delay": self.http_retry_base_delay,
+            "max_delay": self.http_retry_max_delay,
+            "timeout": self.http_timeout,
+        }

@@ -3,7 +3,7 @@
 Simple demo of the FastMCP OpenAPI server.
 Shows how to run the server with stdio transport.
 
-Run with: python demo_fastmcp_simple.py
+Run with: python examples/demo_fastmcp_simple.py
 Or after pip install: openapi-mcp
 """
 import os
