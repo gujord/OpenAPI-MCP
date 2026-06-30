@@ -32,6 +32,21 @@ This example:
 - Connects to the Petstore API
 - Shows real-time streaming capabilities
 
+### demo_xquik_api_key.py
+
+Shows how to load a hosted OpenAPI document for an API that expects a custom
+header API key on upstream requests.
+
+```bash
+export XQUIK_API_KEY="your-api-key"
+python examples/demo_xquik_api_key.py
+```
+
+This example:
+- Connects to Xquik's hosted OpenAPI 3.1 document
+- Configures the `x-api-key` header through `MCP_AUTH_HEADERS`
+- Keeps the API key in the environment and never prints it
+
 ## Running Examples
 
 Before running examples, ensure you have the package installed:
