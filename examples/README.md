@@ -32,6 +32,21 @@ This example:
 - Connects to the Petstore API
 - Shows real-time streaming capabilities
 
+### demo_xquik_openapi.py
+
+Shows how to expose Xquik's public OpenAPI specification as MCP tools with a
+bearer-token header.
+
+```bash
+# Run from project root
+XQUIK_API_KEY=your-key python examples/demo_xquik_openapi.py
+```
+
+This example:
+- Loads `https://xquik.com/openapi.json`
+- Passes `Authorization: Bearer ...` through `MCP_AUTH_HEADERS`
+- Prints a Claude Desktop stdio configuration using `XQUIK_API_KEY`
+
 ## Running Examples
 
 Before running examples, ensure you have the package installed:
