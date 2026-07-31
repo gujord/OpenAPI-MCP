@@ -9,23 +9,27 @@ Follows FastMCP patterns and best practices.
 
 __all__ = ["FastMCPOpenAPIServer", "OpenAPITool", "main", "retry_with_backoff"]
 
-import json
-import os
-import sys
-import logging
 import asyncio
-import random
-from typing import Dict, Any, List, Optional
+import inspect
+import json
+import keyword
+import logging
+import os
+import re
+import sys
 from dataclasses import dataclass
+from random import SystemRandom
+from typing import Any, Dict, List, Optional
+
 import httpx
 from fastmcp import FastMCP
-
 
 # Retry configuration
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_BASE_DELAY = 1.0  # seconds
 DEFAULT_RETRY_MAX_DELAY = 30.0  # seconds
 RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+RETRY_RANDOM = SystemRandom()
 
 
 async def retry_with_backoff(
@@ -62,7 +66,7 @@ async def retry_with_backoff(
             last_exception = e
             if attempt < max_retries:
                 # Exponential backoff with jitter
-                delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
+                delay = min(base_delay * (2**attempt) + RETRY_RANDOM.uniform(0, 1), max_delay)
                 if logger:
                     logger.warning(
                         f"Request failed (attempt {attempt + 1}/{max_retries + 1}): {e}. "
@@ -86,7 +90,7 @@ async def retry_with_backoff(
                         except ValueError:
                             delay = base_delay * (2**attempt)
                     else:
-                        delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
+                        delay = min(base_delay * (2**attempt) + RETRY_RANDOM.uniform(0, 1), max_delay)
 
                     if logger:
                         logger.warning(
@@ -110,19 +114,19 @@ async def retry_with_backoff(
 
 
 try:
-    from .config import ServerConfig
     from .auth import AuthenticationManager
+    from .config import ServerConfig
+    from .exceptions import ConfigurationError, OpenAPIError
     from .openapi_loader import OpenAPILoader, OpenAPIParser
     from .request_handler import RequestHandler
-    from .schema_converter import SchemaConverter, NameSanitizer
-    from .exceptions import *
+    from .schema_converter import NameSanitizer, SchemaConverter
 except ImportError:
-    from config import ServerConfig
     from auth import AuthenticationManager
+    from config import ServerConfig
+    from exceptions import ConfigurationError, OpenAPIError
     from openapi_loader import OpenAPILoader, OpenAPIParser
     from request_handler import RequestHandler
-    from schema_converter import SchemaConverter, NameSanitizer
-    from exceptions import *
+    from schema_converter import NameSanitizer, SchemaConverter
 
 
 @dataclass
@@ -253,41 +257,93 @@ class FastMCPOpenAPIServer:
         # Use the tool decorator to register with name and description
         self.mcp.tool(name=tool_name, description=tool_description)(generic_tool_function)
 
+    @staticmethod
+    def _get_parameter_annotation(parameter: Dict[str, Any]) -> Any:
+        """Map an OpenAPI parameter schema to a Python annotation."""
+        parameter_types = {
+            "array": list,
+            "boolean": bool,
+            "integer": int,
+            "number": float,
+            "object": dict,
+            "string": str,
+        }
+        annotation = parameter_types.get((parameter.get("schema") or {}).get("type"), Any)
+        return annotation if parameter.get("required", False) else Optional[annotation]
+
+    @staticmethod
+    def _get_parameter_name(name: str, used_names: set[str]) -> str:
+        """Create a unique Python identifier for an OpenAPI parameter."""
+        base_name = re.sub(r"[^a-zA-Z0-9_]", "_", name) or "parameter"
+        if base_name[0].isdigit():
+            base_name = f"_{base_name}"
+        if keyword.iskeyword(base_name) or base_name in {"dry_run", "kwargs", "req_id"}:
+            base_name = f"api_{base_name}"
+
+        parameter_name = base_name
+        suffix = 2
+        while parameter_name in used_names:
+            parameter_name = f"{base_name}_{suffix}"
+            suffix += 1
+
+        used_names.add(parameter_name)
+        return parameter_name
+
+    @classmethod
+    def _build_tool_signature(cls, tool: OpenAPITool) -> tuple[inspect.Signature, Dict[str, str]]:
+        """Build a callable signature and original-name mapping for a tool."""
+        used_names = {"dry_run", "req_id"}
+        original_names: Dict[str, str] = {}
+        parameters = []
+
+        for parameter in tool.parameters:
+            original_name = parameter.get("name")
+            if not original_name:
+                continue
+
+            parameter_name = cls._get_parameter_name(original_name, used_names)
+            original_names[parameter_name] = original_name
+            default = inspect.Parameter.empty if parameter.get("required", False) else None
+            parameters.append(
+                inspect.Parameter(
+                    parameter_name,
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=default,
+                    annotation=cls._get_parameter_annotation(parameter),
+                )
+            )
+
+        parameters.extend(
+            [
+                inspect.Parameter(
+                    "dry_run",
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=False,
+                    annotation=bool,
+                ),
+                inspect.Parameter(
+                    "req_id",
+                    kind=inspect.Parameter.KEYWORD_ONLY,
+                    default=None,
+                    annotation=Optional[str],
+                ),
+            ]
+        )
+        return inspect.Signature(parameters, return_annotation=Dict[str, Any]), original_names
+
     def _make_generic_tool_function(self, tool: OpenAPITool):
         """Create generic tool function for a specific tool."""
+        signature, original_names = self._build_tool_signature(tool)
 
         async def generic_tool_function(
+            *,
             dry_run: bool = False,
             req_id: Optional[str] = None,
-            # Common OpenAPI parameters
-            id: Optional[str] = None,
-            status: Optional[str] = None,
-            tags: Optional[str] = None,
-            name: Optional[str] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            q: Optional[str] = None,
-            query: Optional[str] = None,
-            # Additional common parameters
-            page: Optional[int] = None,
-            size: Optional[int] = None,
-            sort: Optional[str] = None,
-            filter: Optional[str] = None,
-            # Weather API specific
-            lat: Optional[float] = None,
-            lon: Optional[float] = None,
-            altitude: Optional[int] = None,
+            **kwargs: Any,
         ) -> Dict[str, Any]:
             """Generic tool function for OpenAPI operation."""
             try:
-                # Build kwargs from function parameters
-                import inspect
-
-                frame = inspect.currentframe()
-                args = inspect.getargvalues(frame)
-                kwargs = {
-                    k: v for k, v in args.locals.items() if k != "self" and v is not None and k not in ["frame", "args"]
-                }
+                kwargs = {original_names.get(name, name): value for name, value in kwargs.items() if value is not None}
 
                 if req_id is None:
                     req_id = f"{tool.operation_id}_{int(asyncio.get_event_loop().time())}"
@@ -295,7 +351,14 @@ class FastMCPOpenAPIServer:
                 # Handle dry run
                 if dry_run:
                     request_data, error = self.request_handler.prepare_request(
-                        req_id, kwargs, tool.parameters, tool.path, tool.server_url, tool.operation_id
+                        req_id,
+                        kwargs,
+                        tool.parameters,
+                        tool.path,
+                        tool.server_url,
+                        tool.operation_id,
+                        dry_run=True,
+                        parse_kwargs=False,
                     )
                     if error:
                         return error
@@ -318,7 +381,13 @@ class FastMCPOpenAPIServer:
 
                 # Execute real request
                 request_data, error = self.request_handler.prepare_request(
-                    req_id, kwargs, tool.parameters, tool.path, tool.server_url, tool.operation_id
+                    req_id,
+                    kwargs,
+                    tool.parameters,
+                    tool.path,
+                    tool.server_url,
+                    tool.operation_id,
+                    parse_kwargs=False,
                 )
 
                 if error:
@@ -331,7 +400,9 @@ class FastMCPOpenAPIServer:
 
                 # Log request details (hide sensitive headers in non-debug mode)
                 if self.config.debug:
-                    safe_headers = {k: v for k, v in req_headers.items() if k.lower() not in ("authorization", "x-api-key")}
+                    safe_headers = {
+                        k: v for k, v in req_headers.items() if k.lower() not in ("authorization", "x-api-key")
+                    }
                     self.logger.info(
                         f"REQUEST: {tool.method.upper()} {full_url}\n"
                         f"  Headers: {safe_headers}\n"
@@ -391,7 +462,10 @@ class FastMCPOpenAPIServer:
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id or "unknown",
-                    "error": {"code": -32603, "message": f"HTTP error {e.response.status_code}: {e.response.text[:200]}"},
+                    "error": {
+                        "code": -32603,
+                        "message": f"HTTP error {e.response.status_code}: {e.response.text[:200]}",
+                    },
                 }
             except httpx.RequestError as e:
                 self.logger.error(f"Tool {tool.operation_id} request error: {e}")
@@ -408,6 +482,10 @@ class FastMCPOpenAPIServer:
                     "error": {"code": -32602, "message": f"Invalid parameter: {str(e)}"},
                 }
 
+        annotations = {parameter.name: parameter.annotation for parameter in signature.parameters.values()}
+        annotations["return"] = signature.return_annotation
+        generic_tool_function.__annotations__ = annotations
+        generic_tool_function.__dict__["__signature__"] = signature
         return generic_tool_function
 
     def _build_parameter_schema(self, tool: OpenAPITool) -> Dict[str, Any]:
@@ -546,6 +624,10 @@ This server provides access to {len(self.operations)} API operations from {api_t
     def run_stdio(self):
         """Run server with stdio transport (for MCP clients)."""
         self.mcp.run(transport="stdio")
+
+    async def run_stdio_async(self):
+        """Run server with stdio transport asynchronously."""
+        await self.mcp.run_async(transport="stdio")
 
     async def run_sse_async(self, host: str = "127.0.0.1", port: int = 8000):
         """Run server with SSE transport asynchronously."""

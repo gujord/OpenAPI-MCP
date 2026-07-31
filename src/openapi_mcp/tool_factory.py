@@ -5,8 +5,9 @@
 __all__ = ["ToolMetadataBuilder", "ToolFunctionFactory"]
 
 import logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+
 import httpx
-from typing import Dict, Any, List, Optional, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     try:
@@ -117,9 +118,17 @@ class ToolFunctionFactory:
         def tool_function(req_id: Any = None, **kwargs):
             """The actual tool function that will be called."""
             try:
+                dry_run = bool(kwargs.pop("dry_run", False))
+
                 # Prepare the request
                 request_data, error = self.request_handler.prepare_request(
-                    req_id, kwargs, parameters, path, self.server_url, op_id
+                    req_id,
+                    kwargs,
+                    parameters,
+                    path,
+                    self.server_url,
+                    op_id,
+                    dry_run=dry_run,
                 )
 
                 if error:

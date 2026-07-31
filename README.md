@@ -150,7 +150,7 @@ MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
 python src/openapi_mcp/fastmcp_server.py
 
-# Terminal 2: Petstore API  
+# Terminal 2: Petstore API
 source venv/bin/activate && \
 OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
 SERVER_NAME="petstore" \
@@ -171,7 +171,7 @@ docker-compose up --build -d
 ```
 
 This automatically runs:
-- Weather API on port 8001  
+- Weather API on port 8001
 - Petstore API on port 8002
 
 ## ⚙️ Advanced Configuration
@@ -194,7 +194,7 @@ Or create manually:
       "args": ["mcp-remote", "http://127.0.0.1:8001/sse"]
     },
     "petstore": {
-      "command": "npx", 
+      "command": "npx",
       "args": ["mcp-remote", "http://127.0.0.1:8002/sse"]
     }
   }
@@ -287,15 +287,15 @@ Configure multiple OpenAPI services to run simultaneously:
     "weather": {
       "command": "npx",
       "args": [
-        "mcp-remote", 
+        "mcp-remote",
         "http://127.0.0.1:8001/sse"
       ]
     },
     "petstore": {
-      "command": "npx", 
+      "command": "npx",
       "args": [
         "mcp-remote",
-        "http://127.0.0.1:8002/sse" 
+        "http://127.0.0.1:8002/sse"
       ]
     }
   }
@@ -345,7 +345,7 @@ For a single API service:
     "openapi_service": {
       "command": "npx",
       "args": [
-        "mcp-remote", 
+        "mcp-remote",
         "http://127.0.0.1:8001/sse",
         "--debug"
       ]
@@ -362,7 +362,7 @@ For a single API service:
       "command": "npx",
       "args": [
         "mcp-remote",
-        "http://127.0.0.1:8001/mcp", 
+        "http://127.0.0.1:8001/mcp",
         "--transport",
         "streamable-http"
       ]
@@ -416,7 +416,7 @@ MCP_HTTP_ENABLED="true" \
 MCP_HTTP_PORT="8001" \
 python src/openapi_mcp/fastmcp_server.py
 
-# Terminal 2  
+# Terminal 2
 source venv/bin/activate && \
 OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
 SERVER_NAME="petstore" \
@@ -485,7 +485,7 @@ SERVER_NAME="local_api" \
 python src/openapi_mcp/fastmcp_server.py
 ```
 
-### YAML Format  
+### YAML Format
 ```bash
 source venv/bin/activate
 OPENAPI_URL="../shared/api.yaml" \
@@ -503,7 +503,7 @@ python src/openapi_mcp/fastmcp_server.py
 
 ### Supported Formats
 - **JSON files**: `.json` extension
-- **YAML files**: `.yaml` or `.yml` extension  
+- **YAML files**: `.yaml` or `.yml` extension
 - **Relative paths**: `./path/to/spec.yaml`, `../spec.json`
 - **Absolute paths**: `/full/path/to/spec.yaml`
 
@@ -533,6 +533,18 @@ python src/openapi_mcp/fastmcp_server.py
 - **RapidAPI**: `MCP_AUTH_HEADERS='{"X-RapidAPI-Key": "your-key"}'`
 - **Custom Bearer**: `MCP_AUTH_HEADERS='{"Authorization": "Bearer custom-token"}'`
 - **Multiple Headers**: `MCP_AUTH_HEADERS='{"X-API-Key": "key", "X-API-Secret": "secret"}'`
+
+### Xquik OpenAPI Example
+
+Run the complete hosted Xquik OpenAPI document through this proxy:
+
+```bash
+export XQUIK_API_KEY="your-api-key"
+python examples/demo_xquik_api_key.py
+```
+
+See [the examples guide](examples/README.md#demo_xquik_api_keypy) for approval,
+cost, credential, and untrusted-content safeguards.
 
 ### Local Spec + Custom Headers
 Combine both features for development:
@@ -605,11 +617,11 @@ src/
 
 ### Key Features
 
-✅ **FastMCP Integration** - Uses latest FastMCP framework  
-✅ **Automatic Tool Registration** - Converts OpenAPI operations to MCP tools  
-✅ **Multi-Transport Support** - stdio, HTTP, SSE  
-✅ **Parameter Validation** - Type conversion and validation  
-✅ **Error Handling** - Comprehensive JSON-RPC error responses  
+✅ **FastMCP Integration** - Uses latest FastMCP framework
+✅ **Automatic Tool Registration** - Converts OpenAPI operations to MCP tools
+✅ **Multi-Transport Support** - stdio, HTTP, SSE
+✅ **Parameter Validation** - Type conversion and validation
+✅ **Error Handling** - Comprehensive JSON-RPC error responses
 ✅ **Authentication** - OAuth2 and username/password support
 
 ## How It Works

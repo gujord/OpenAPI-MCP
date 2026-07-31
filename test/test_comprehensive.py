@@ -3,10 +3,11 @@
 Comprehensive test script for the OpenAPI-MCP server.
 Tests multiple APIs and authentication methods.
 """
-import os
-import sys
-import logging
+
 import asyncio
+import logging
+import os
+
 import pytest
 
 from openapi_mcp.config import ServerConfig
@@ -40,18 +41,18 @@ async def test_comprehensive():
             srv = FastMCPOpenAPIServer(config)
             await srv.initialize()
 
-            # Find the findPetsByStatus tool
-            find_pets_tool = None
+            # Find a stable Petstore lookup tool
+            get_pet_tool = None
             for op in srv.operations:
-                if "findPetsByStatus" in op.operation_id:
-                    find_pets_tool = op
+                if "getPetById" in op.operation_id:
+                    get_pet_tool = op
                     break
 
-            assert find_pets_tool is not None
+            assert get_pet_tool is not None
 
             # Test a real API call
-            tool_func = srv._create_tool_function(find_pets_tool)
-            result = await tool_func(status="available")
+            tool_func = srv._create_tool_function(get_pet_tool)
+            result = await tool_func(petId=1)
 
             success = "result" in result and "data" in result["result"]
             test_results.append(("Petstore API", success, f"{len(srv.operations)} operations"))
@@ -90,7 +91,9 @@ async def test_comprehensive():
             if success and "properties" in result["result"]["data"]:
                 weather_data = result["result"]["data"]["properties"]
                 forecast_count = len(weather_data.get("timeseries", []))
-                test_results.append(("Weather API", True, f"{len(srv.operations)} operations, {forecast_count} forecasts"))
+                test_results.append(
+                    ("Weather API", True, f"{len(srv.operations)} operations, {forecast_count} forecasts")
+                )
                 print(f"  Weather: {len(srv.operations)} operations, {forecast_count} forecast periods")
             else:
                 test_results.append(("Weather API", False, "No weather data"))

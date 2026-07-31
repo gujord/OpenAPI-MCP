@@ -4,11 +4,11 @@
 
 __all__ = ["KwargsParser", "PathSanitizer", "ParameterProcessor", "RequestHandler"]
 
-import re
 import json
 import logging
+import re
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qsl
-from typing import Dict, Any, List, Optional, Tuple, Union, TYPE_CHECKING
 
 try:
     from .exceptions import ParameterError
@@ -223,19 +223,19 @@ class RequestHandler:
         path: str,
         server_url: str,
         op_id: str,
+        *,
+        dry_run: bool = False,
+        parse_kwargs: bool = True,
     ) -> Tuple[Optional[Tuple[str, Dict, Dict, Any, bool]], Optional[Dict]]:
         """Prepare request data or return error response."""
         try:
             # Process kwargs if present
-            processed_kwargs = self._process_kwargs(kwargs)
+            processed_kwargs = self._process_kwargs(kwargs) if parse_kwargs else kwargs
 
             # Validate required parameters
             error = self._validate_required_parameters(req_id, processed_kwargs, parameters)
             if error:
                 return None, error
-
-            # Check for dry run
-            dry_run = processed_kwargs.pop("dry_run", False)
 
             # Process parameters
             req_params, req_headers, req_body = self.param_processor.process_parameters(processed_kwargs, parameters)
@@ -256,7 +256,11 @@ class RequestHandler:
             return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": str(e)}}
         except (KeyError, ValueError, TypeError) as e:
             logging.error("Error preparing request: %s", e)
-            return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Invalid parameter: {e}"}}
+            return None, {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": f"Invalid parameter: {e}"},
+            }
 
     def _process_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Process and parse kwargs."""
