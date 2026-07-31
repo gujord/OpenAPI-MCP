@@ -10,11 +10,12 @@ __all__ = [
     "AuthenticationManager",
 ]
 
+import logging
 import os
 import time
-import logging
+from typing import Dict, Optional
+
 import httpx
-from typing import Optional, Dict
 
 try:
     from .exceptions import AuthenticationError

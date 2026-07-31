@@ -5,7 +5,7 @@
 __all__ = ["SchemaConverter", "NameSanitizer", "ResourceNameProcessor"]
 
 import re
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 class SchemaConverter:

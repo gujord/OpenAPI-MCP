@@ -6,11 +6,12 @@ __all__ = ["OpenAPILoader", "OpenAPIParser"]
 
 import json
 import logging
-import yaml
-import httpx
 from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
-from typing import Dict, Any, Tuple, List, Optional
+
+import httpx
+import yaml
 
 try:
     from .exceptions import OpenAPIError
@@ -88,7 +89,7 @@ class OpenAPILoader:
             raise  # Re-raise FileNotFoundError as-is
         except (json.JSONDecodeError, yaml.YAMLError) as e:
             raise OpenAPIError(f"Failed to parse OpenAPI spec file: {e}")
-        except (IOError, OSError) as e:
+        except OSError as e:
             raise OpenAPIError(f"Failed to read OpenAPI spec file: {e}")
 
         # Validate spec structure

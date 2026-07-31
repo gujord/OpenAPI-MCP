@@ -5,25 +5,22 @@
 __all__ = ["SSEHTTPServer", "SSEServerManager", "create_sse_enabled_server"]
 
 import asyncio
-import json
 import logging
 import signal
 import sys
 from contextlib import asynccontextmanager
-from typing import Dict, Any, Optional
-from starlette.applications import Starlette
-from starlette.responses import StreamingResponse, JSONResponse, Response
-from starlette.routing import Route
-from starlette.middleware.cors import CORSMiddleware
-from sse_starlette.sse import EventSourceResponse
+
 import uvicorn
+from sse_starlette.sse import EventSourceResponse
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
+from starlette.routing import Route
 
 try:
-    from .sse_handler import SSEManager, SSEEvent, SSEEventType
-    from .exceptions import RequestExecutionError
+    from .sse_handler import SSEEvent, SSEEventType, SSEManager
 except ImportError:
-    from sse_handler import SSEManager, SSEEvent, SSEEventType
-    from exceptions import RequestExecutionError
+    from sse_handler import SSEEvent, SSEEventType, SSEManager
 
 
 class SSEHTTPServer:
