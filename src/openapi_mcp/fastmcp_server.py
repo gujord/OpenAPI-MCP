@@ -545,48 +545,31 @@ This server provides access to {len(self.operations)} API operations from {api_t
 
     def run_stdio(self):
         """Run server with stdio transport (for MCP clients)."""
-        self.mcp.run()
+        self.mcp.run(transport="stdio")
 
     async def run_sse_async(self, host: str = "127.0.0.1", port: int = 8000):
         """Run server with SSE transport asynchronously."""
-        import uvicorn
-
-        app = self.mcp.sse_app()
-        config = uvicorn.Config(app, host=host, port=port, log_level="info")
-        server = uvicorn.Server(config)
-        await server.serve()
+        await self.mcp.run_async(transport="sse", host=host, port=port)
 
     async def run_http_async(self, host: str = "127.0.0.1", port: int = 8000):
         """Run server with streamable HTTP transport asynchronously."""
-        import uvicorn
-
-        app = self.mcp.streamable_http_app()
-        config = uvicorn.Config(app, host=host, port=port, log_level="info")
-        server = uvicorn.Server(config)
-        await server.serve()
+        await self.mcp.run_async(transport="http", host=host, port=port)
 
     def run_sse(self, host: str = "127.0.0.1", port: int = 8000):
         """Run server with SSE transport."""
-        # FastMCP uses uvicorn to run SSE server
-        import uvicorn
-
-        app = self.mcp.sse_app()
-        uvicorn.run(app, host=host, port=port)
+        self.mcp.run(transport="sse", host=host, port=port)
 
     def run_http(self, host: str = "127.0.0.1", port: int = 8000):
         """Run server with streamable HTTP transport."""
-        import uvicorn
-
-        app = self.mcp.streamable_http_app()
-        uvicorn.run(app, host=host, port=port)
+        self.mcp.run(transport="http", host=host, port=port)
 
     def get_sse_app(self):
         """Get SSE app for custom deployment."""
-        return self.mcp.sse_app()
+        return self.mcp.http_app(transport="sse")
 
     def get_http_app(self):
         """Get HTTP app for custom deployment."""
-        return self.mcp.streamable_http_app()
+        return self.mcp.http_app(transport="http")
 
 
 def main():

@@ -15,8 +15,8 @@ from openapi_mcp.config import ServerConfig
 from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
 
 
-async def main():
-    """Initialize the Xquik OpenAPI server for stdio MCP clients."""
+async def initialize_server() -> FastMCPOpenAPIServer:
+    """Initialize the Xquik OpenAPI server."""
     api_key = os.environ.get("XQUIK_API_KEY", "")
     if not api_key:
         raise RuntimeError("Set XQUIK_API_KEY before running this example.")
@@ -33,13 +33,21 @@ async def main():
     config = ServerConfig()
     server = FastMCPOpenAPIServer(config)
     await server.initialize()
+    return server
 
-    print(f"Xquik FastMCP server initialized with {len(server.operations)} operations.")
-    print("Add this command to an MCP client configuration:")
-    print(f"{sys.executable} {os.path.abspath(__file__)}")
+
+def main() -> None:
+    """Initialize Xquik, then serve it to stdio MCP clients."""
+    server = asyncio.run(initialize_server())
+    print(
+        f"Xquik FastMCP server initialized with {len(server.operations)} operations.",
+        file=sys.stderr,
+    )
+    print("Add this command to an MCP client configuration:", file=sys.stderr)
+    print(f"{sys.executable} {os.path.abspath(__file__)}", file=sys.stderr)
 
     server.run_stdio()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

@@ -46,6 +46,14 @@ This example:
 - Connects to Xquik's hosted OpenAPI 3.1 document
 - Configures the `x-api-key` header through `MCP_AUTH_HEADERS`
 - Keeps the API key in the environment and never prints it
+- Exposes X search, monitoring, extraction, and write operations as MCP tools
+- Keeps status messages on stderr so stdio MCP messages remain valid
+
+Create an API key with the [Xquik quickstart](https://docs.xquik.com/quickstart).
+The live schema is available at <https://xquik.com/openapi.json>.
+
+Xquik is an independent third-party service. Not affiliated with X Corp.
+"Twitter" and "X" are trademarks of X Corp.
 
 ## Running Examples
 
