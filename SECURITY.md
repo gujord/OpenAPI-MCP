@@ -1,87 +1,71 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Deployment boundary
 
-We are committed to maintaining security for the following versions:
+OpenAPI-MCP executes API operations with the credentials configured on the
+server. Those credentials do **not** authenticate MCP clients. The current
+executable has an operation allowlist that defaults to no API operations.
+There is still no per-user authorization. The explicit `all` policy opts into
+every operation in the trusted specification.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.x.x   | :white_check_mark: |
+Use stdio for a client-owned local process, or bind HTTP to loopback. Before
+making HTTP accessible to other machines, provide client authentication and
+access controls appropriate to the deployment. Host/Origin validation helps
+against unwanted browser requests and host rebinding; it does not establish a
+client's identity. CORS is not an authorization mechanism.
 
-## 🔒 Security Updates
+Only load trusted OpenAPI documents and trusted upstream URLs. A document
+controls request destinations, tool descriptions, and available operations.
+Custom authentication headers are also used when fetching a remote document.
+Do not let an untrusted party choose that URL or edit the specification. API
+responses and descriptions may contain hostile instructions for an AI client;
+the proxy does not sanitize prompt injection.
 
-### h11 Chunked-Encoding Vulnerability (Fixed - January 2025)
+Use least-privilege upstream credentials and HTTPS for remote API/token URLs.
+The service does not yet enforce destination allowlists, remote document/response
+size limits, or complete OpenAPI serialization semantics. Debug logs and error
+messages are not a general-purpose secret redactor: dependencies, URLs, and
+upstream error bodies may still contain sensitive data.
 
-**Issue:** Previous versions used h11 < 0.15.0, which had a leniency in parsing line terminators in chunked-coding message bodies that could lead to request smuggling vulnerabilities.
+## Operation policy
 
-**Solution:** Updated to h11 >= 0.16.0 and httpcore >= 1.0.9
+`MCP_ALLOWED_OPERATIONS` contains exact `METHOD /path` selectors. Unknown entries
+and contradictory settings stop startup. Omitted operations are never registered
+as tools; knowing an operation name does not bypass the policy. Names that collide
+after sanitization are rejected. The policy is fixed at startup and applies to
+all clients of that server. Metadata resources remain available; the allowlist
+is a request-execution boundary, not a confidentiality filter for the document.
 
-**Impact:** High - Request smuggling attacks were possible when using vulnerable reverse proxies
+File-based configuration no longer writes policy or credentials into process-wide
+environment variables. See the [policy and adapter review](docs/reviews/2026-11-05-operation-policy-and-adapters.md)
+for tests and the limitations of a possible native-provider migration.
 
-**Fixed by:**
-```bash
-# Before (vulnerable)
-h11<0.15,>=0.13
-httpcore==1.0.7
+## Unreleased hardening
 
-# After (secure)  
-h11>=0.16.0
-httpcore>=1.0.9
-```
+The local November 2026 review adds:
 
-**Verify fix:**
-```bash
-pip install -r requirements.txt --upgrade
-python -c "import h11; print(f'h11 version: {h11.__version__}')"
-# Should show: h11 version: 0.16.0 or higher
-```
+- Request previews that do not fetch tokens or include server-injected credentials.
+- Encoded path-segment validation and quoting before URL construction.
+- No automatic retries for POST/PATCH; bounded numeric Retry-After delays.
+- Fail-closed behavior when configured token authentication fails.
+- Explicit FastMCP Host/Origin protection and loopback-only Docker port mappings.
+- Request/response debug metadata without full headers or payloads.
+- Offline regression tests and current FastMCP/MCP dependency constraints.
 
-## Reporting a Vulnerability
+These changes are **not included in PyPI 1.0.4**. They have not undergone an
+independent human security audit. Automated checks and an empty dependency-audit
+result are limited evidence, not a certification that the software is secure.
+See the [review record](docs/reviews/2026-11-05-security-and-compatibility.md).
 
-If you discover a security issue:
+Deprecated server/transport modules remain in the source tree; use the
+`openapi-mcp` executable (`fastmcp_server.py`). Runtime dependencies should be
+resolved and audited for the actual deployment. The repository's h11/httpcore
+minimums address earlier dependency updates, not every possible HTTP issue.
 
-1. **DO NOT** open a public issue for sensitive vulnerabilities
-2. Open a [GitHub Issue](https://github.com/gujord/OpenAPI-MCP/issues) for non-sensitive issues
-3. Include:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
+## Reporting
 
-We will respond within 48 hours and provide updates until resolved.
-
-## Security Best Practices
-
-### Production Deployment
-- ✅ Always use the latest version
-- ✅ Keep dependencies updated: `pip install -r requirements.txt --upgrade`
-- ✅ Use HTTPS for all communications
-- ✅ Implement proper authentication for APIs requiring it
-- ✅ Monitor logs for suspicious activity
-
-### Docker Security
-- ✅ Use the official configuration (runs as non-root user)
-- ✅ Keep Docker and base images updated
-- ✅ Use Docker secrets for sensitive configuration
-
-### Network Security
-- ✅ Run behind a reverse proxy (nginx, cloudflare, etc.)
-- ✅ Use firewalls to restrict access
-- ✅ Implement rate limiting
-- ✅ Use VPN/private networks when possible
-
-## Security Checklist
-
-Before deploying to production:
-
-- [ ] Updated to latest version
-- [ ] All dependencies updated
-- [ ] Using HTTPS transport
-- [ ] Proper authentication configured
-- [ ] Reverse proxy configured
-- [ ] Monitoring enabled
-- [ ] Network access restricted
-
----
-
-**Last updated: January 2025**
+Do not publish exploit details, credentials, or sensitive logs in a public issue.
+Send a private report to the maintainer at [roger@gujord.no](mailto:roger@gujord.no)
+with affected versions, a minimal reproduction using synthetic data, expected
+and observed behavior, and the likely impact. Public issues are appropriate for
+non-sensitive bugs. No response-time guarantee is currently offered.

@@ -14,20 +14,16 @@ import json
 import logging
 import time
 import uuid
-from typing import Dict, Any, Optional, AsyncGenerator, Callable, List
 from dataclasses import dataclass, field
 from enum import Enum
-from starlette.applications import Starlette
-from starlette.responses import StreamingResponse, JSONResponse
-from starlette.requests import Request
-from starlette.middleware.cors import CORSMiddleware
-from starlette.routing import Route
-import uvicorn
+from typing import Any, Dict, List, Optional
 
-try:
-    from .exceptions import RequestExecutionError, ParameterError
-except ImportError:
-    from exceptions import RequestExecutionError, ParameterError
+import uvicorn
+from starlette.applications import Starlette
+from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, StreamingResponse
+from starlette.routing import Route
 
 
 @dataclass
@@ -50,7 +46,7 @@ class MCPSession:
         self.message_history.append({**message, "timestamp": time.time()})
         # Trim history if it exceeds the limit (keep most recent messages)
         if len(self.message_history) > self.max_history_size:
-            self.message_history = self.message_history[-self.max_history_size:]
+            self.message_history = self.message_history[-self.max_history_size :]
 
     def clear_history(self):
         """Clear message history to free memory."""
@@ -497,7 +493,6 @@ class MCPHttpTransport:
         """Periodic cleanup of expired sessions."""
         while True:
             try:
-                current_time = time.time()
                 expired_sessions = []
 
                 for session_id, session in self.sessions.items():

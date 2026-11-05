@@ -49,8 +49,10 @@ dependencies = [
     "httpx>=0.28.1",
     "httpx-sse>=0.4.0",
     "idna>=3.10",
-    "mcp>=1.23.0",
-    "fastmcp>=2.13.0",
+    "mcp>=2.3.0,<3",
+    "fastmcp>=4.1.6,<5",
+    "jsonschema>=4.26.0,<5",
+    "referencing>=0.37.0,<1",
     "pydantic>=2.10.6",
     "pydantic-settings>=2.8.1",
     "python-dotenv>=1.0.1",
@@ -67,6 +69,7 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
+    "pytest-socket>=0.7.0",
 ]
 
 [project.urls]
@@ -87,6 +90,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+addopts = "--disable-socket --allow-unix-socket"
+markers = ["live: legacy examples requiring external services or listening servers"]
+filterwarnings = ["error::pytest.PytestReturnNotNoneWarning"]
 
 [tool.black]
 line-length = 120

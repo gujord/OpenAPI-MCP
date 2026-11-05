@@ -4,16 +4,16 @@
 
 __all__ = ["KwargsParser", "PathSanitizer", "ParameterProcessor", "RequestHandler"]
 
-import re
 import json
 import logging
-from urllib.parse import parse_qsl
-from typing import Dict, Any, List, Optional, Tuple, Union, TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from urllib.parse import parse_qsl, quote, unquote
 
 try:
-    from .exceptions import ParameterError
+    from .exceptions import AuthenticationError, ParameterError
 except ImportError:
-    from exceptions import ParameterError
+    from exceptions import AuthenticationError, ParameterError
 
 if TYPE_CHECKING:
     try:
@@ -41,7 +41,7 @@ class KwargsParser:
         if s.startswith("?"):
             s = s[1:]
 
-        logging.debug("Parsing kwargs string: %s", s)
+        logging.debug("Parsing kwargs string (%d characters)", len(s))
 
         # Try standard JSON parsing first
         try:
@@ -80,12 +80,6 @@ class KwargsParser:
                 except (json.JSONDecodeError, ValueError):
                     continue
 
-        # Try standard query string parsing
-        parsed_qsl = dict(parse_qsl(s))
-        if parsed_qsl:
-            logging.debug("Query string parsing succeeded")
-            return parsed_qsl
-
         # Fallback: comma-separated pairs
         if "," in s and "&" not in s:
             result = {}
@@ -110,7 +104,14 @@ class KwargsParser:
                 logging.debug("Comma-separated parsing succeeded")
                 return result
 
-        logging.warning("All parsing methods failed for string: %s", s)
+        # Query parsing must follow comma parsing: parse_qsl accepts a comma
+        # list as one value, silently losing every subsequent parameter.
+        parsed_qsl = dict(parse_qsl(s))
+        if parsed_qsl:
+            logging.debug("Query string parsing succeeded")
+            return parsed_qsl
+
+        logging.warning("Could not parse kwargs string")
         return {}
 
 
@@ -136,17 +137,27 @@ class PathSanitizer:
             ParameterError: If the value contains dangerous characters
         """
         str_value = str(value)
+        # Check decoded forms too: servers/proxies may decode escaped path
+        # values. Each decoding pass reduces the escaping until stable.
+        checked_value = str_value
+        for _ in range(8):
+            decoded = unquote(checked_value)
+            if decoded == checked_value:
+                break
+            checked_value = decoded
+        else:
+            raise ParameterError(f"Path parameter '{param_name}' is excessively encoded")
 
         # Check for path traversal attempts
-        if ".." in str_value:
+        if ".." in checked_value:
             raise ParameterError(f"Path parameter '{param_name}' contains invalid sequence '..'")
 
         # Check for directory separators
-        if "/" in str_value or "\\" in str_value:
+        if "/" in checked_value or "\\" in checked_value:
             raise ParameterError(f"Path parameter '{param_name}' contains invalid path separator")
 
         # Check for null bytes
-        if "\x00" in str_value:
+        if "\x00" in checked_value:
             raise ParameterError(f"Path parameter '{param_name}' contains null byte")
 
         # Validate against allowed pattern (optional, can be strict or permissive)
@@ -154,7 +165,11 @@ class PathSanitizer:
         if not str_value:
             raise ParameterError(f"Path parameter '{param_name}' cannot be empty")
 
-        return str_value
+        if checked_value == "." or any(ord(char) < 32 or ord(char) == 127 for char in checked_value):
+            raise ParameterError(f"Path parameter '{param_name}' contains an invalid path value")
+
+        # Treat a parameter as data in one path segment, never URL syntax.
+        return quote(str_value, safe="-._~")
 
 
 class ParameterProcessor:
@@ -244,7 +259,10 @@ class RequestHandler:
             processed_path = self._replace_path_parameters(path, processed_kwargs, parameters)
 
             # Add authentication
-            req_headers = self.authenticator.add_auth_headers(req_headers)
+            # A preview must neither fetch tokens nor disclose server-owned
+            # credentials to a tool caller.
+            if not dry_run:
+                req_headers = self.authenticator.add_auth_headers(req_headers)
             req_headers.setdefault("User-Agent", "OpenAPI-MCP/1.0")
 
             # Build full URL
@@ -252,14 +270,25 @@ class RequestHandler:
 
             return (full_url, req_params, req_headers, req_body, dry_run), None
 
+        except AuthenticationError:
+            return None, {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32603, "message": "API authentication failed"},
+            }
         except ParameterError as e:
             return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": str(e)}}
         except (KeyError, ValueError, TypeError) as e:
             logging.error("Error preparing request: %s", e)
-            return None, {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32602, "message": f"Invalid parameter: {e}"}}
+            return None, {
+                "jsonrpc": "2.0",
+                "id": req_id,
+                "error": {"code": -32602, "message": f"Invalid parameter: {e}"},
+            }
 
     def _process_kwargs(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Process and parse kwargs."""
+        kwargs = kwargs.copy()
         if "kwargs" not in kwargs:
             return kwargs
 
@@ -268,18 +297,18 @@ class RequestHandler:
         if isinstance(kwargs_value, str):
             # Remove backticks and parse
             raw = re.sub(r"^`+|`+$", "", kwargs_value)
-            logging.info("Parsing kwargs string: %s", raw)
+            logging.debug("Parsing wrapped kwargs")
 
             parsed_kwargs = self.kwargs_parser.parse_kwargs_string(raw)
             if not parsed_kwargs:
-                raise ParameterError(f"Could not parse kwargs string: '{raw}'. Please check format.")
+                raise ParameterError("Could not parse kwargs string. Please check format.")
 
             kwargs.update(parsed_kwargs)
-            logging.info("Parsed kwargs: %s", kwargs)
+            logging.debug("Parsed %d parameters", len(kwargs))
 
         elif isinstance(kwargs_value, dict):
             kwargs.update(kwargs_value)
-            logging.info("Using provided kwargs dict: %s", kwargs)
+            logging.debug("Using %d provided parameters", len(kwargs))
 
         return kwargs
 

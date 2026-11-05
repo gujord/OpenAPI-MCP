@@ -27,7 +27,7 @@ ENV PYTHONPATH=/app/src
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD python -c "import httpx; httpx.get('http://localhost:${MCP_HTTP_PORT:-8001}/health', timeout=5)" || exit 1
+  CMD python -c "import httpx; httpx.get('http://localhost:${MCP_HTTP_PORT:-8001}/health', timeout=5).raise_for_status()" || exit 1
 
 # Run FastMCP server when the container launches
 CMD ["python", "src/openapi_mcp/fastmcp_server.py"]

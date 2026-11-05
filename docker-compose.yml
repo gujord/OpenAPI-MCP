@@ -7,16 +7,17 @@ services:
     environment:
       - OPENAPI_URL=https://api.met.no/weatherapi/locationforecast/2.0/swagger
       - SERVER_NAME=weather
+      - 'MCP_ALLOWED_OPERATIONS=["GET /compact"]'
       - MCP_HTTP_ENABLED=true
       - MCP_HTTP_HOST=0.0.0.0
       - MCP_HTTP_PORT=8001
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     networks:
       - mcp-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8001/health', timeout=5).raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -28,16 +29,17 @@ services:
     environment:
       - OPENAPI_URL=https://petstore3.swagger.io/api/v3/openapi.json
       - SERVER_NAME=petstore
+      - 'MCP_ALLOWED_OPERATIONS=["GET /pet/{petId}"]'
       - MCP_HTTP_ENABLED=true
       - MCP_HTTP_HOST=0.0.0.0
       - MCP_HTTP_PORT=8002
     ports:
-      - "8002:8002"
+      - "127.0.0.1:8002:8002"
     networks:
       - mcp-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health', timeout=5)"]
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8002/health', timeout=5).raise_for_status()"]
       interval: 30s
       timeout: 10s
       retries: 3

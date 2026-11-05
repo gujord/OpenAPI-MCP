@@ -16,15 +16,11 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, Any, Optional, AsyncGenerator, Callable
 from dataclasses import dataclass
 from enum import Enum
-import httpx
+from typing import Any, AsyncGenerator, Callable, Dict, Optional
 
-try:
-    from .exceptions import RequestExecutionError, ParameterError
-except ImportError:
-    from exceptions import RequestExecutionError, ParameterError
+import httpx
 
 
 class SSEEventType(Enum):
@@ -144,8 +140,8 @@ class SSEConnection:
         # Send final event
         try:
             await self._event_queue.put(SSEEvent(type=SSEEventType.COMPLETE, data={"disconnected": True}))
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logging.debug("Could not enqueue the disconnect notification", exc_info=True)
 
 
 class SSEStreamProcessor:

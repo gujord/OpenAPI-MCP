@@ -5,8 +5,9 @@
 __all__ = ["ToolMetadataBuilder", "ToolFunctionFactory"]
 
 import logging
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
+
 import httpx
-from typing import Dict, Any, List, Optional, Callable, TYPE_CHECKING
 
 if TYPE_CHECKING:
     try:

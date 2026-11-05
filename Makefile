@@ -91,4 +91,5 @@ run:
 run-example:
 	OPENAPI_URL=https://petstore3.swagger.io/api/v3/openapi.json \
 	SERVER_NAME=petstore \
+	MCP_ALLOWED_OPERATIONS='["GET /pet/{petId}"]' \
 	python -m openapi_mcp.fastmcp_server

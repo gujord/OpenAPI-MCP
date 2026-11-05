@@ -10,11 +10,12 @@ __all__ = [
     "AuthenticationManager",
 ]
 
+import logging
 import os
 import time
-import logging
+from typing import Dict, Optional
+
 import httpx
-from typing import Optional, Dict
 
 try:
     from .exceptions import AuthenticationError
@@ -100,7 +101,7 @@ class UsernamePasswordAuthenticator:
             return access_token
 
         except httpx.HTTPStatusError as e:
-            raise AuthenticationError(f"Login failed: {e.response.status_code} {e.response.text}")
+            raise AuthenticationError(f"Login failed: HTTP {e.response.status_code}") from e
         except httpx.RequestError as e:
             raise AuthenticationError(f"Login request failed: {e}")
         except (KeyError, ValueError, TypeError) as e:
@@ -121,12 +122,14 @@ class UsernamePasswordAuthenticator:
 class OAuthAuthenticator:
     """Handles OAuth authentication for API requests."""
 
-    def __init__(self):
+    def __init__(self, config=None):
         self._cache = OAuthTokenCache()
-        self._client_id = os.environ.get("OAUTH_CLIENT_ID")
-        self._client_secret = os.environ.get("OAUTH_CLIENT_SECRET")
-        self._token_url = os.environ.get("OAUTH_TOKEN_URL")
-        self._scope = os.environ.get("OAUTH_SCOPE", "api")
+        self._client_id = config.oauth_client_id if config is not None else os.environ.get("OAUTH_CLIENT_ID")
+        self._client_secret = (
+            config.oauth_client_secret if config is not None else os.environ.get("OAUTH_CLIENT_SECRET")
+        )
+        self._token_url = config.oauth_token_url if config is not None else os.environ.get("OAUTH_TOKEN_URL")
+        self._scope = config.oauth_scope if config is not None else os.environ.get("OAUTH_SCOPE", "api")
 
     def get_access_token(self) -> Optional[str]:
         """Get valid access token, refreshing if necessary."""
@@ -169,7 +172,7 @@ class OAuthAuthenticator:
             return access_token
 
         except httpx.HTTPStatusError as e:
-            raise AuthenticationError(f"OAuth token request failed: {e.response.status_code} {e.response.text}")
+            raise AuthenticationError(f"OAuth token request failed: HTTP {e.response.status_code}") from e
         except httpx.RequestError as e:
             raise AuthenticationError(f"OAuth token request failed: {e}")
         except (KeyError, ValueError, TypeError) as e:
@@ -237,7 +240,7 @@ class AuthenticationManager:
 
         # Initialize OAuth authenticator if configured
         if config.is_oauth_configured():
-            self._oauth_auth = OAuthAuthenticator()
+            self._oauth_auth = OAuthAuthenticator(config)
             logging.info("OAuth authentication configured")
 
         # Initialize username/password authenticator if configured
@@ -254,21 +257,26 @@ class AuthenticationManager:
 
     def get_access_token(self) -> Optional[str]:
         """Get access token using the configured authentication method."""
+        failed = False
         # Try username/password auth first if configured
         if self._username_auth and self._username_auth.is_configured():
             try:
                 return self._username_auth.get_access_token()
-            except AuthenticationError as e:
-                logging.warning(f"Username/password authentication failed: {e}")
+            except AuthenticationError:
+                failed = True
+                logging.warning("Username/password authentication failed")
 
         # Fall back to OAuth if configured
         if self._oauth_auth and self._oauth_auth.is_configured():
             try:
                 return self._oauth_auth.get_access_token()
-            except AuthenticationError as e:
-                logging.warning(f"OAuth authentication failed: {e}")
+            except AuthenticationError:
+                failed = True
+                logging.warning("OAuth authentication failed")
 
-        logging.info("No authentication configured or all methods failed")
+        if failed:
+            raise AuthenticationError("Configured token authentication failed")
+        logging.debug("No token authentication configured")
         return None
 
     def add_auth_headers(self, headers: dict) -> dict:

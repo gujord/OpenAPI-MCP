@@ -6,11 +6,13 @@ __all__ = ["OpenAPILoader", "OpenAPIParser"]
 
 import json
 import logging
-import yaml
-import httpx
+from copy import deepcopy
 from pathlib import Path
+from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urlparse
-from typing import Dict, Any, Tuple, List, Optional
+
+import httpx
+import yaml
 
 try:
     from .exceptions import OpenAPIError
@@ -181,8 +183,15 @@ class OpenAPIParser:
 
         for path, path_item in spec.get("paths", {}).items():
             for method, operation in path_item.items():
-                if method.lower() not in {"get", "post", "put", "delete", "patch", "head", "options"}:
+                if method.lower() not in {"get", "post", "put", "delete", "patch", "head", "options", "trace"}:
                     continue
+
+                # Operation parameters override path-level parameters with
+                # the same (name, location). Never modify the source spec.
+                operation = deepcopy(operation)
+                inherited = {(p.get("name"), p.get("in")): deepcopy(p) for p in path_item.get("parameters", [])}
+                inherited.update({(p.get("name"), p.get("in")): p for p in operation.get("parameters", [])})
+                operation["parameters"] = list(inherited.values())
 
                 # Process request body as parameter
                 self._process_request_body(operation)
@@ -196,6 +205,8 @@ class OpenAPIParser:
                     or f"{method}_{path.replace('/', '_').replace('{', '').replace('}', '')}"
                 )
                 sanitized_op_id = self._sanitize_name(raw_op_id)
+                if sanitized_op_id in operations:
+                    raise OpenAPIError(f"Operation name collision after sanitization: {sanitized_op_id}")
 
                 # Get operation summary/description
                 summary = operation.get("description") or operation.get("summary") or sanitized_op_id

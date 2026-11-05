@@ -23,7 +23,8 @@ __all__ = [
 ]
 
 from typing import Any, Dict, List, Optional
-from typing_extensions import TypedDict, NotRequired
+
+from typing_extensions import NotRequired, TypedDict
 
 
 class ParameterDefinition(TypedDict, total=False):

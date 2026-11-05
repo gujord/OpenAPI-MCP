@@ -1,801 +1,237 @@
 # OpenAPI to Model Context Protocol (MCP)
 
-[![PyPI version](https://badge.fury.io/py/openapi-mcp-proxy.svg)](https://badge.fury.io/py/openapi-mcp-proxy)
+[![PyPI version](https://badge.fury.io/py/openapi-mcp-proxy.svg)](https://pypi.org/project/openapi-mcp-proxy/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-![Repo Size](https://img.shields.io/github/repo-size/gujord/OpenAPI-MCP)
-![Last Commit](https://img.shields.io/github/last-commit/gujord/OpenAPI-MCP)
-![Open Issues](https://img.shields.io/github/issues/gujord/OpenAPI-MCP)
 ![Python version](https://img.shields.io/badge/Python-3.10+-blue)
 
-**The OpenAPI-MCP proxy translates OpenAPI specs into MCP tools, enabling AI agents to access external APIs without custom wrappers!**
+OpenAPI-MCP exposes operations from an OpenAPI document as MCP tools. It also
+provides schema resources, a usage prompt, and request previews. The server uses
+FastMCP for MCP transport and tool registration.
 
-![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/main/img/Open-API-MCP-relations.png)
+![OpenAPI-MCP](img/Open-API-MCP-relations.png)
 
-## Bridge the gap between AI agents and external APIs
+**Development status:** the changes described below are unreleased. PyPI 1.0.4
+does not contain these fixes. This source version targets FastMCP 4.1.6 and MCP
+Python SDK 2.3.0, with compatible minor updates allowed. See the
+[review and validation record](docs/reviews/2026-11-05-security-and-compatibility.md)
+for tested versions, findings, and remaining work.
 
-The OpenAPI to Model Context Protocol (MCP) proxy server bridges the gap between AI agents and external APIs by **dynamically translating** OpenAPI specifications into standardized **MCP tools**, **resources**, and **prompts**. This simplifies integration by eliminating the need for custom API wrappers.
+## Install and run
 
-Built with **FastMCP** following official MCP patterns and best practices, the server provides:
-- ✅ **Official FastMCP Integration** - Uses the latest FastMCP framework for optimal performance
-- ✅ **Proper MCP Transport** - Supports stdio, SSE, and streamable HTTP transports
-- ✅ **Modular Architecture** - Clean separation of concerns with dependency injection
-- ✅ **Production Ready** - Robust error handling, comprehensive logging, and type safety
+Python 3.10 or later is required. To use this checkout:
 
-- **Repository:** [https://github.com/gujord/OpenAPI-MCP](https://github.com/gujord/OpenAPI-MCP)
-
----
-
-If you find it useful, please give it a ⭐ on GitHub!
-
----
-
-## Key Features
-
-### Core Functionality
-- **FastMCP Transport:** Optimized for `stdio`, working out-of-the-box with popular LLM orchestrators.
-- **OpenAPI Integration:** Parses and registers OpenAPI operations as callable tools.
-- **Resource Registration:** Automatically converts OpenAPI component schemas into resource objects with defined URIs.
-- **Prompt Generation:** Generates contextual prompts based on API operations to guide LLMs in using the API.
-- **Dual Authentication:** Supports both OAuth2 Client Credentials flow and username/password authentication with automatic token caching.
-- **MCP HTTP Transport:** Official MCP-compliant HTTP streaming transport with JSON-RPC 2.0 over SSE.
-- **Server-Sent Events (SSE):** Legacy streaming support (deprecated - use MCP HTTP transport).
-- **JSON-RPC 2.0 Support:** Fully compliant request/response structure.
-
-### Advanced Features
-- **Modular Architecture:** Clean separation of concerns with dedicated modules for authentication, request handling, and tool generation.
-- **Robust Error Handling:** Comprehensive exception hierarchy with proper JSON-RPC error codes and structured error responses.
-- **Auto Metadata:** Derives tool names, summaries, and schemas from the OpenAPI specification.
-- **Sanitized Tool Names:** Ensures compatibility with MCP name constraints.
-- **Flexible Parameter Parsing:** Supports query strings, JSON, and comma-separated formats with intelligent type conversion.
-- **Enhanced Parameter Handling:** Automatically converts parameters to correct data types with validation.
-- **Extended Tool Metadata:** Includes detailed parameter information, response schemas, and API categorization.
-- **CRUD Operation Detection:** Automatically identifies and generates example prompts for Create, Read, Update, Delete operations.
-- **MCP-Compliant Streaming:** Official MCP HTTP transport for real-time streaming with proper session management.
-
-### Developer Experience
-- **Configuration Management:** Centralized environment variable handling with validation and defaults.
-- **Comprehensive Logging:** Structured logging with appropriate levels for debugging and monitoring.
-- **Type Safety:** Full type hints and validation throughout the codebase.
-- **Extensible Design:** Factory patterns and dependency injection for easy customization and testing.
-
-## 🚀 Quick Start
-
-### Installation
-
-**Option 1: Using uvx (Recommended)**
 ```bash
-# Run directly without installation
-uvx openapi-mcp-proxy
-
-# Or with environment variables
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-uvx openapi-mcp-proxy
-```
-
-**Option 2: Using pip**
-```bash
-pip install openapi-mcp-proxy
-
-# Then run
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-openapi-mcp
-```
-
-**Option 3: From source**
-```bash
-git clone https://github.com/gujord/OpenAPI-MCP.git
-cd OpenAPI-MCP
-python3.12 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+python -m venv .venv
+source .venv/bin/activate
 pip install -e .
+OPENAPI_URL="./test/fixtures/petstore.json" \
+MCP_ALLOWED_OPERATIONS='["GET /pets"]' \
+SERVER_NAME="petstore" openapi-mcp
 ```
 
-### 🎯 Simple Usage
+The default transport is **stdio**. A client launches the process and communicates
+through its standard input and output. `OPENAPI_URL` accepts a local JSON/YAML
+file or an HTTP(S) URL. Use specifications and API endpoints you trust.
 
-**Quick Test (Norwegian Weather API)**
-```bash
-# Using uvx
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-uvx openapi-mcp
+A stdio client configuration can use the installed executable:
 
-# Or using installed package
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-openapi-mcp
-```
-
-**HTTP Transport (Recommended for Claude Desktop)**
-```bash
-# Start weather API with HTTP transport
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8001" \
-openapi-mcp
-```
-
-### 🔗 Claude Desktop Setup
-
-**1. Copy the provided configuration:**
-```bash
-cp claude_desktop_config.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-**2. Start the weather server:**
-```bash
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8001" \
-openapi-mcp
-```
-
-**3. Test in Claude Desktop:**
-- Ask: *"What's the weather in Oslo tomorrow?"*
-- Claude will use the `weather_get__compact` tool automatically!
-
-### 🌐 Multiple API Servers
-
-Run multiple OpenAPI services simultaneously:
-
-```bash
-# Terminal 1: Weather API
-source venv/bin/activate && \
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8001" \
-python src/openapi_mcp/fastmcp_server.py
-
-# Terminal 2: Petstore API  
-source venv/bin/activate && \
-OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
-SERVER_NAME="petstore" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8002" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-### 🐳 Docker Deployment
-
-**Quick start with Docker:**
-```bash
-# Start all services (weather + petstore)
-./docker-start.sh
-
-# Or manually
-docker-compose up --build -d
-```
-
-This automatically runs:
-- Weather API on port 8001  
-- Petstore API on port 8002
-
-## ⚙️ Advanced Configuration
-
-### Claude Desktop / Cursor / Windsurf
-
-**HTTP Transport (Recommended):**
-
-Use the provided configuration file:
-```bash
-cp claude_desktop_config.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-Or create manually:
 ```json
 {
   "mcpServers": {
-    "weather": {
-      "command": "npx",
-      "args": ["mcp-remote", "http://127.0.0.1:8001/sse"]
-    },
     "petstore": {
-      "command": "npx", 
-      "args": ["mcp-remote", "http://127.0.0.1:8002/sse"]
-    }
-  }
-}
-```
-
-**Stdio Transport (Alternative):**
-```json
-{
-  "mcpServers": {
-    "weather": {
-      "command": "/full/path/to/OpenAPI-MCP/venv/bin/python",
-      "args": ["/full/path/to/OpenAPI-MCP/src/openapi_mcp/fastmcp_server.py"],
+      "command": "/absolute/path/to/.venv/bin/openapi-mcp",
       "env": {
-        "SERVER_NAME": "weather",
-        "OPENAPI_URL": "https://api.met.no/weatherapi/locationforecast/2.0/swagger"
-      },
-      "transport": "stdio"
+        "OPENAPI_URL": "/absolute/path/to/OpenAPI-MCP/test/fixtures/petstore.json",
+        "SERVER_NAME": "petstore",
+        "MCP_ALLOWED_OPERATIONS": "[\"GET /pets\"]"
+      }
     }
   }
 }
 ```
 
-> **Note:** Replace `/full/path/to/OpenAPI-MCP` with your actual installation path.
+For **Streamable HTTP**:
 
-#### With Local Spec and Custom Headers
-```json
-{
-  "mcpServers": {
-    "local_api": {
-      "command": "/full/path/to/OpenAPI-MCP/venv/bin/python",
-      "args": ["/full/path/to/OpenAPI-MCP/src/openapi_mcp/fastmcp_server.py"],
-      "env": {
-        "SERVER_NAME": "local_api",
-        "OPENAPI_URL": "./specs/my-api.yaml",
-        "MCP_AUTH_HEADERS": "{\"X-API-Key\": \"your-key-here\"}"
-      },
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-#### With Username/Password Authentication
-```json
-{
-  "mcpServers": {
-    "secure_api": {
-      "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/openapi_mcp/fastmcp_server.py"],
-      "env": {
-        "SERVER_NAME": "secure_api",
-        "OPENAPI_URL": "https://api.example.com/openapi.json",
-        "API_USERNAME": "your_username",
-        "API_PASSWORD": "your_password"
-      },
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-#### With OAuth2 Authentication
-```json
-{
-  "mcpServers": {
-    "oauth_api": {
-      "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/openapi_mcp/fastmcp_server.py"],
-      "env": {
-        "SERVER_NAME": "oauth_api",
-        "OPENAPI_URL": "https://api.example.com/openapi.json",
-        "OAUTH_CLIENT_ID": "your_client_id",
-        "OAUTH_CLIENT_SECRET": "your_client_secret",
-        "OAUTH_TOKEN_URL": "https://api.example.com/oauth/token"
-      },
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-#### Multiple API Servers with MCP HTTP Transport
-
-Configure multiple OpenAPI services to run simultaneously:
-
-```json
-{
-  "mcpServers": {
-    "weather": {
-      "command": "npx",
-      "args": [
-        "mcp-remote", 
-        "http://127.0.0.1:8001/sse"
-      ]
-    },
-    "petstore": {
-      "command": "npx", 
-      "args": [
-        "mcp-remote",
-        "http://127.0.0.1:8002/sse" 
-      ]
-    }
-  }
-}
-```
-
-This configuration gives Claude access to both weather data AND petstore API tools simultaneously, with clear tool naming like `weather_get__compact` and `petstore_addPet`.
-
-#### Single API Server with MCP HTTP Transport
-
-For a single API service:
-
-**Standard SSE Configuration:**
-```json
-{
-  "mcpServers": {
-    "openapi_service": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://127.0.0.1:8001/sse"
-      ]
-    }
-  }
-}
-```
-
-**Streamable HTTP Configuration:**
-```json
-{
-  "mcpServers": {
-    "openapi_service": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://127.0.0.1:8001/mcp"
-      ]
-    }
-  }
-}
-```
-
-**With Debugging (for development):**
-```json
-{
-  "mcpServers": {
-    "openapi_service": {
-      "command": "npx",
-      "args": [
-        "mcp-remote", 
-        "http://127.0.0.1:8001/sse",
-        "--debug"
-      ]
-    }
-  }
-}
-```
-
-**With Custom Transport Strategy:**
-```json
-{
-  "mcpServers": {
-    "openapi_service": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "http://127.0.0.1:8001/mcp", 
-        "--transport",
-        "streamable-http"
-      ]
-    }
-  }
-}
-```
-
-#### With Legacy SSE Streaming (Deprecated)
-```json
-{
-  "mcpServers": {
-    "streaming_api": {
-      "command": "full_path_to_openapi_mcp/venv/bin/python",
-      "args": ["full_path_to_openapi_mcp/src/openapi_mcp/fastmcp_server.py"],
-      "env": {
-        "SERVER_NAME": "streaming_api",
-        "OPENAPI_URL": "https://api.example.com/openapi.json",
-        "SSE_ENABLED": "true",
-        "SSE_HOST": "127.0.0.1",
-        "SSE_PORT": "8001"
-      },
-      "transport": "stdio"
-    }
-  }
-}
-```
-
-Apply this configuration to the following files:
-
-- Cursor: `~/.cursor/mcp.json`
-- Windsurf: `~/.codeium/windsurf/mcp_config.json`
-- Claude Desktop: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-> Replace `full_path_to_openapi_mcp` with your actual installation path.
-
-### Quick Setup for Multiple APIs
-
-Copy the provided example configuration:
 ```bash
-cp claude_desktop_config.json ~/Library/Application\ Support/Claude/claude_desktop_config.json
-```
-
-Start both services:
-```bash
-# Terminal 1
-source venv/bin/activate && \
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8001" \
-python src/openapi_mcp/fastmcp_server.py
-
-# Terminal 2  
-source venv/bin/activate && \
-OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
+OPENAPI_URL="./test/fixtures/petstore.json" \
 SERVER_NAME="petstore" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8002" \
-python src/openapi_mcp/fastmcp_server.py
+MCP_ALLOWED_OPERATIONS='["GET /pets"]' \
+MCP_HTTP_ENABLED=true \
+MCP_HTTP_PORT=8001 \
+openapi-mcp
 ```
 
-Result: Claude gets access to both weather and petstore APIs with prefixed tool names.
+The MCP endpoint is `http://127.0.0.1:8001/mcp`. The supplied
+[client configuration](claude_desktop_config.json) uses `mcp-remote` to connect
+stdio clients to HTTP. Client applications and `mcp-remote` are separate
+components and were not tested in the offline review.
 
-### Environment Configuration
+Legacy SSE is available explicitly with `MCP_TRANSPORT_TYPE=sse`, at `/sse`.
+The default HTTP endpoint changed from `/sse` to `/mcp`; update existing clients.
 
-#### Core Configuration
-| Variable              | Description                          | Required | Default                |
-|-----------------------|--------------------------------------|----------|------------------------|
-| `OPENAPI_URL`         | URL or local file path to OpenAPI specification | Yes      | -                      |
-| `SERVER_NAME`         | MCP server name                      | No       | `openapi_proxy_server` |
+## Choose which API operations to expose
 
-#### OAuth2 Authentication
-| Variable              | Description                          | Required | Default                |
-|-----------------------|--------------------------------------|----------|------------------------|
-| `OAUTH_CLIENT_ID`     | OAuth client ID                      | No       | -                      |
-| `OAUTH_CLIENT_SECRET` | OAuth client secret                  | No       | -                      |
-| `OAUTH_TOKEN_URL`     | OAuth token endpoint URL             | No       | -                      |
-| `OAUTH_SCOPE`         | OAuth scope                          | No       | `api`                  |
-
-#### Username/Password Authentication
-| Variable              | Description                          | Required | Default                |
-|-----------------------|--------------------------------------|----------|------------------------|
-| `API_USERNAME`        | API username for authentication      | No       | -                      |
-| `API_PASSWORD`        | API password for authentication      | No       | -                      |
-| `API_LOGIN_ENDPOINT`  | Login endpoint URL                   | No       | Auto-detected          |
-
-#### Custom Authentication Headers
-| Variable              | Description                          | Required | Default                |
-|-----------------------|--------------------------------------|----------|------------------------|
-| `MCP_AUTH_HEADERS`    | Custom authentication headers (JSON or key=value format) | No       | -                      |
-
-#### MCP HTTP Transport (Recommended)
-| Variable              | Description                          | Required | Default                |
-|-----------------------|--------------------------------------|----------|------------------------|
-| `MCP_HTTP_ENABLED`    | Enable MCP HTTP transport            | No       | `false`                |
-| `MCP_HTTP_HOST`       | MCP HTTP server host                 | No       | `127.0.0.1`            |
-| `MCP_HTTP_PORT`       | MCP HTTP server port                 | No       | `8000`                 |
-| `MCP_CORS_ORIGINS`    | CORS origins (comma-separated)       | No       | `*`                    |
-| `MCP_MESSAGE_SIZE_LIMIT` | Message size limit                | No       | `4mb`                  |
-| `MCP_BATCH_TIMEOUT`   | Batch timeout in seconds             | No       | `30`                   |
-| `MCP_SESSION_TIMEOUT` | Session timeout in seconds           | No       | `3600`                 |
-
-#### Legacy SSE Support (Deprecated)
-| Variable              | Description                          | Required | Default                |
-|-----------------------|--------------------------------------|----------|------------------------|
-| `SSE_ENABLED`         | Enable SSE streaming support         | No       | `false`                |
-| `SSE_HOST`            | SSE server host                      | No       | `127.0.0.1`            |
-| `SSE_PORT`            | SSE server port                      | No       | `8000`                 |
-
-## 📁 Loading Local OpenAPI Specifications
-
-You can now load OpenAPI specs from your local filesystem instead of requiring remote URLs:
-
-### JSON Format
-```bash
-source venv/bin/activate
-OPENAPI_URL="./specs/my-api.json" \
-SERVER_NAME="local_api" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-### YAML Format  
-```bash
-source venv/bin/activate
-OPENAPI_URL="../shared/api.yaml" \
-SERVER_NAME="local_api" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-### Absolute Path
-```bash
-source venv/bin/activate
-OPENAPI_URL="/Users/myuser/projects/api-spec.json" \
-SERVER_NAME="local_api" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-### Supported Formats
-- **JSON files**: `.json` extension
-- **YAML files**: `.yaml` or `.yml` extension  
-- **Relative paths**: `./path/to/spec.yaml`, `../spec.json`
-- **Absolute paths**: `/full/path/to/spec.yaml`
-
-## 🔑 API Key and Custom Headers
-
-Support for APIs requiring custom headers (API keys, tokens, etc.):
-
-### Using JSON Format
-```bash
-source venv/bin/activate
-MCP_AUTH_HEADERS='{"X-API-Key": "your-api-key", "X-Client-ID": "client123"}' \
-OPENAPI_URL="https://api.example.com/openapi.json" \
-SERVER_NAME="custom_api" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-### Using Simple Format
-```bash
-source venv/bin/activate
-MCP_AUTH_HEADERS='X-API-Key=your-api-key,X-Client-ID=client123' \
-OPENAPI_URL="https://api.example.com/openapi.json" \
-SERVER_NAME="custom_api" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-### Common API Key Patterns
-- **RapidAPI**: `MCP_AUTH_HEADERS='{"X-RapidAPI-Key": "your-key"}'`
-- **Custom Bearer**: `MCP_AUTH_HEADERS='{"Authorization": "Bearer custom-token"}'`
-- **Multiple Headers**: `MCP_AUTH_HEADERS='{"X-API-Key": "key", "X-API-Secret": "secret"}'`
-
-### Local Spec + Custom Headers
-Combine both features for development:
-```bash
-source venv/bin/activate
-OPENAPI_URL="./test/fixtures/api.json" \
-MCP_AUTH_HEADERS='{"X-API-Key": "dev-key"}' \
-SERVER_NAME="dev_api" \
-python src/openapi_mcp/fastmcp_server.py
-```
-
-## 🛠️ Examples & Use Cases
-
-### Norwegian Weather API
-Test with real weather data (no authentication required):
+By default, **no API operations are exposed**. Set `MCP_ALLOWED_OPERATIONS` to a
+JSON array of exact uppercase HTTP method and OpenAPI path pairs:
 
 ```bash
-# Start weather server
-source venv/bin/activate && \
-OPENAPI_URL="https://api.met.no/weatherapi/locationforecast/2.0/swagger" \
-SERVER_NAME="weather" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8001" \
-python src/openapi_mcp/fastmcp_server.py
+MCP_ALLOWED_OPERATIONS='["GET /pets", "GET /pets/{petId}"]'
 ```
 
-**Available tools:**
-- `weather_get__compact` - Weather forecast for coordinates
-- `weather_get__complete` - Detailed weather forecast
-- `weather_get__status` - Server status
+Selectors use the paths in the specification, without the server URL/base path.
+They are literal matches, not regular expressions or wildcards. An unknown
+selector, malformed list, duplicate selector, or conflicting policy stops startup.
+Only permitted operations appear as tools, in the operation list, and in the
+usage prompt. A direct call to an omitted tool is rejected before request
+preparation or authentication. An empty list leaves only the information tools,
+usage prompt, and schema resources available. API descriptions and component
+schemas remain metadata; this policy is not a document-redaction feature.
 
-**Example usage in Claude:**
-- *"What's the weather in Oslo tomorrow?"* → Uses lat=59.9139, lon=10.7522
-- *"Show me detailed weather for Bergen"* → Uses lat=60.3913, lon=5.3221
+To deliberately expose every operation, set `MCP_OPERATION_POLICY=all` and leave
+`MCP_ALLOWED_OPERATIONS` unset. This restores the previous exposure behavior.
+A policy applies to the entire server instance, not individual users. Restart
+with a new server instance to apply changes. A GET-only list is not a guarantee
+of harmless operations; choose each route based on what its API actually does.
 
-### Pet Store API
-Test with Swagger's demo API:
+Operation IDs that collide after name sanitization, or permitted IDs that collide
+with management tool names, are rejected instead of silently replacing a tool.
+
+## Tools and request previews
+
+Each permitted API operation becomes a tool named `<server_name>_<operation_id>`.
+Inputs use the parameter names from the specification, including names such as
+`customerId` or `X-Trace`. JSON request bodies use the argument `body`.
+Required fields and supported JSON Schema constraints are checked before an API
+request. Local `#/components/schemas/` references are supported; external schema
+references are not fetched.
+
+Every generated operation accepts two additional arguments:
+
+- `dry_run: true` returns the prepared URL, parameters, caller-supplied headers,
+  and body without executing the API request or obtaining an authentication token.
+  Server-configured authentication headers are omitted from the preview.
+- `req_id` is an optional correlation string.
+
+For example, a tool with a `customerId` path parameter and JSON request body can
+be called with:
+
+```json
+{"customerId": "c1", "body": {"quantity": 2}, "dry_run": true}
+```
+
+Previews still contain caller-supplied data. They are not a general redaction
+service. `dry_run` and `req_id` are reserved names; specifications that use them,
+or reuse one input name across locations, are rejected rather than silently
+mapped to the wrong input.
+
+Additional tools list operations and server information. Component schemas are
+available as JSON resources under `schema://<server_name>_<schema_name>` (with
+sanitized names), and a generated prompt describes API usage.
+
+## Configuration
+
+Environment variables and a local `.env` file configure the executable.
+The Python API also exposes `ServerConfig.from_file()` for JSON/YAML settings.
+Process environment overrides `.env`, which overrides file values. Loading a
+file does not modify the process environment or other server instances.
+
+| Variable | Meaning | Default |
+| --- | --- | --- |
+| `OPENAPI_URL` | Trusted specification URL or local file | Required |
+| `SERVER_NAME` | Prefix for tools and resources | `openapi_proxy_server` |
+| `MCP_OPERATION_POLICY` | `allowlist` or explicit `all` | `allowlist` |
+| `MCP_ALLOWED_OPERATIONS` | JSON array of exact `METHOD /path` selectors | `[]` (no API operations) |
+| `MCP_HTTP_ENABLED` | Enable HTTP instead of stdio | `false` |
+| `MCP_HTTP_HOST` | Address to bind | `127.0.0.1` |
+| `MCP_HTTP_PORT` | Port | `8000` |
+| `MCP_TRANSPORT_TYPE` | `http` or legacy `sse` | `http` |
+| `MCP_ALLOWED_HOSTS` | Additional trusted HTTP Host values, comma-separated | FastMCP loopback defaults |
+| `MCP_CORS_ORIGINS` | Allowed HTTP Origin values, comma-separated | localhost and 127.0.0.1 on ports 3000 and 8080 |
+| `MCP_AUTH_HEADERS` | Upstream headers as JSON or `key=value,key2=value2` | Empty |
+| `OAUTH_CLIENT_ID`, `OAUTH_CLIENT_SECRET`, `OAUTH_TOKEN_URL` | Upstream OAuth client credentials | Unset |
+| `OAUTH_SCOPE` | Upstream OAuth scope | `api` |
+| `API_USERNAME`, `API_PASSWORD`, `API_LOGIN_ENDPOINT` | Upstream username/password login | Unset |
+| `HTTP_TIMEOUT` | Upstream request timeout in seconds | `30` |
+| `HTTP_MAX_RETRIES` | Retries for idempotent HTTP methods | `3` |
+| `HTTP_RETRY_BASE_DELAY`, `HTTP_RETRY_MAX_DELAY` | Retry delays in seconds | `1`, `30` |
+| `MCP_DEBUG` | Enable debug logging | `false` |
+
+`MCP_CORS_ORIGINS` is retained as a configuration name for compatibility; it
+controls Origin validation in the FastMCP transport, not MCP client identity or
+a complete browser CORS policy. HTTP Host/Origin protection is enabled explicitly.
+
+The old `MCP_MESSAGE_SIZE_LIMIT`, `MCP_BATCH_TIMEOUT`, `MCP_SESSION_TIMEOUT`, and
+`SSE_*` settings belong to legacy modules. They do not configure limits or
+transport selection in the current `openapi-mcp` executable.
+
+### Upstream authentication
 
 ```bash
-# Start petstore server
-source venv/bin/activate && \
-OPENAPI_URL="https://petstore3.swagger.io/api/v3/openapi.json" \
-SERVER_NAME="petstore" \
-MCP_HTTP_ENABLED="true" \
-MCP_HTTP_PORT="8002" \
-python src/openapi_mcp/fastmcp_server.py
+OPENAPI_URL="./specs/my-api.yaml" \
+MCP_AUTH_HEADERS='{"X-API-Key": "example-placeholder"}' \
+MCP_ALLOWED_OPERATIONS='["GET /items"]' \
+openapi-mcp
 ```
 
-**Available tools:**
-- `petstore_addPet` - Add a new pet to the store
-- `petstore_findPetsByStatus` - Find pets by status
-- `petstore_getPetById` - Find pet by ID
+These credentials authenticate **outgoing API calls**, not incoming MCP clients.
+Anyone allowed to call this MCP server can invoke its registered API operations
+with the server's API privileges. The operation allowlist limits those tools,
+but there is no per-user authorization layer yet. Use restricted API credentials
+and allow only the operations you intend to expose. See [SECURITY.md](SECURITY.md).
 
-## 🏗️ Architecture
+A configured token login that fails now stops the API request. POST and PATCH
+requests are not retried automatically, because a lost response may hide a
+successful mutation. GET, HEAD, OPTIONS, PUT, and DELETE may be retried according
+to the configured limit; set `HTTP_MAX_RETRIES=0` if the API does not implement
+those methods idempotently. Numeric `Retry-After` delays are bounded by the
+configured maximum; HTTP-date values fall back to exponential delay.
 
-### FastMCP-Based Design
+## Docker
 
-```
-src/
-├── fastmcp_server.py      # FastMCP-based main server (recommended)
-├── server.py              # Legacy MCP server (fallback)
-├── config.py              # Configuration management
-├── auth.py                # OAuth authentication handling
-├── openapi_loader.py      # OpenAPI spec loading and parsing
-├── request_handler.py     # Request preparation and validation
-├── schema_converter.py    # Schema conversion utilities
-├── exceptions.py          # Custom exception hierarchy
-└── __init__.py           # Package initialization
-```
-
-### Key Features
-
-✅ **FastMCP Integration** - Uses latest FastMCP framework  
-✅ **Automatic Tool Registration** - Converts OpenAPI operations to MCP tools  
-✅ **Multi-Transport Support** - stdio, HTTP, SSE  
-✅ **Parameter Validation** - Type conversion and validation  
-✅ **Error Handling** - Comprehensive JSON-RPC error responses  
-✅ **Authentication** - OAuth2 and username/password support
-
-## How It Works
-
-1. **Configuration Loading:** Validates environment variables and server configuration.
-2. **OpenAPI Spec Loading:** Fetches and parses OpenAPI specifications with comprehensive error handling.
-3. **Component Initialization:** Sets up modular components with dependency injection.
-4. **Tool Registration:** Dynamically creates MCP tools from OpenAPI operations with full metadata.
-5. **Resource Registration:** Converts OpenAPI schemas into MCP resources with proper URIs.
-6. **Prompt Generation:** Creates contextual usage prompts and CRUD operation examples.
-7. **Authentication:** Handles both OAuth2 and username/password authentication with token caching and automatic renewal.
-8. **Request Processing:** Advanced parameter parsing, type conversion, and validation.
-9. **Error Handling:** Comprehensive exception handling with structured error responses.
-
-```mermaid
-sequenceDiagram
-    participant LLM as LLM (Claude/GPT)
-    participant MCP as OpenAPI-MCP Proxy
-    participant API as External API
-
-    Note over LLM, API: Communication Process
-
-    LLM->>MCP: 1. Initialize (initialize)
-    MCP-->>LLM: Metadata, tools, resources, and prompts
-
-    LLM->>MCP: 2. Request tools (tools_list)
-    MCP-->>LLM: Detailed list of tools, resources, and prompts
-
-    LLM->>MCP: 3. Call tool (tools_call)
-
-    alt With OAuth2
-        MCP->>API: Request OAuth2 token
-        API-->>MCP: Access Token
-    end
-
-    MCP->>API: 4. Execute API call with proper formatting
-    API-->>MCP: 5. API response (JSON)
-
-    alt Type Conversion
-        MCP->>MCP: 6. Convert parameters to correct data types
-    end
-
-    MCP-->>LLM: 7. Formatted response from API
-
-    alt Dry Run Mode
-        LLM->>MCP: Call with dry_run=true
-        MCP-->>LLM: Display request information without executing call
-    end
-```
-
-## Resources & Prompts
-
-The server automatically generates comprehensive metadata to enhance AI integration:
-
-### Resources
-- **Schema-based Resources:** Automatically derived from OpenAPI component schemas
-- **Structured URIs:** Resources are registered with consistent URIs (e.g., `/resource/{server_name}_{schema_name}`)
-- **Type Conversion:** OpenAPI schemas are converted to MCP-compatible resource definitions
-- **Metadata Enrichment:** Resources include server context and categorization tags
-
-### Prompts
-- **API Usage Guides:** General prompts explaining available operations and their parameters
-- **CRUD Examples:** Automatically generated examples for Create, Read, Update, Delete operations
-- **Contextual Guidance:** Operation-specific prompts with parameter descriptions and usage patterns
-- **Server-specific Branding:** All prompts are prefixed with server name for multi-API environments
-
-### Benefits
-- **Enhanced Discoverability:** AI agents can better understand available API capabilities
-- **Usage Guidance:** Prompts provide clear examples of how to use each operation
-- **Type Safety:** Resource schemas ensure proper data structure understanding
-- **Context Awareness:** Server-specific metadata helps with multi-API integration
-
-![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/refs/heads/main/img/OpenAPI-MCP.png)
-
-## 📊 Performance & Production
-
-### Performance Characteristics
-- **Fast Startup:** Initializes in ~2-3 seconds
-- **Low Memory:** ~50MB base memory usage
-- **Concurrent Requests:** Handles multiple API calls simultaneously
-- **Caching:** Automatic OpenAPI spec and authentication token caching
-
-### Production Deployment
 ```bash
-# Docker production deployment
-docker-compose up -d
-
-# Or with custom configuration
-docker run -d \
-  -e OPENAPI_URL="https://your-api.com/openapi.json" \
-  -e SERVER_NAME="your_api" \
-  -e MCP_HTTP_ENABLED="true" \
-  -e MCP_HTTP_PORT="8001" \
-  -p 8001:8001 \
-  openapi-mcp:latest
+docker compose up --build -d
 ```
 
-### Monitoring
-- Health check endpoint: `GET /health`
-- Metrics via structured logging
-- Error tracking with JSON-RPC error codes
+The example services publish ports 8001 and 8002 on **127.0.0.1 only**. The
+process binds to `0.0.0.0` inside each container. Both example services fetch
+public specifications at startup. `GET /health` reports process liveness; it
+does not test upstream authentication or API availability. Health checks fail
+on HTTP errors. Container builds were not exercised in the local review.
 
-## 🔍 Troubleshooting
+## Development and current scope
 
-### Common Issues
-
-**❌ `RequestHandler.prepare_request() missing arguments`**
 ```bash
-# Solution: Use fastmcp_server.py instead of server.py
-python src/openapi_mcp/fastmcp_server.py  # ✅ Correct
+pip install -e '.[dev]'
+python -m pytest test/ -q
 ```
 
-**❌ Claude Desktop doesn't see the tools**
+Normal tests block network sockets, isolate credentials, and use fixtures or
+mock HTTP responses. Eleven legacy live examples are skipped explicitly.
+Returning a value from a test is an error, so returning `False` cannot masquerade
+as a passing assertion. See [CONTRIBUTING.md](CONTRIBUTING.md) for the checks and
+the opt-in command for legacy live examples.
+
+This is a custom OpenAPI adapter, not a complete OpenAPI implementation. Complex
+parameter serialization, multipart/form bodies, external references, response
+size limits, and per-user MCP authorization require more work. Deprecated server
+and transport modules remain for historical compatibility and have not received
+the same end-to-end validation as `fastmcp_server.py`.
+
+[FastMCP's native OpenAPI integration](https://gofastmcp.com/integrations/openapi)
+handles additional request formats. The [adapter comparison and policy review](docs/reviews/2026-11-05-operation-policy-and-adapters.md)
+records a shared-fixture comparison, including differences in body input shapes,
+argument validation, and request previews. The current adapter remains in use;
+a replacement must preserve those contracts. The comparison script reports
+known gaps with a nonzero exit status:
+
 ```bash
-# Check configuration location
-ls ~/Library/Application\ Support/Claude/claude_desktop_config.json
-
-# Restart Claude Desktop after config changes
+python scripts/compare_openapi_adapters.py --output build/adapter-comparison.json
 ```
 
-**❌ Connection refused on port 8001**
-```bash
-# Check if server is running
-lsof -i :8001
+The [initial review](docs/reviews/2026-11-05-security-and-compatibility.md) also
+covers the July 2026 MCP protocol changes. Updating the SDK alone is not proof
+of complete protocol conformance.
 
-# Check server logs for errors
-```
+## License
 
-**❌ SSL/TLS errors with OpenAPI URLs**
-```bash
-# Update certificates
-pip install --upgrade certifi httpx
-```
-
-### Testing Tools
-
-**Test server initialization:**
-```bash
-python test_weather_oslo.py
-```
-
-**Test with mcp-remote:**
-```bash
-npx mcp-remote http://127.0.0.1:8001/sse
-```
-
-**Check available tools:**
-```bash
-curl http://127.0.0.1:8001/health
-```
-
-### Environment Issues
-
-**Python version mismatch:**
-```bash
-# Ensure Python 3.12+
-python --version
-
-# Recreate virtual environment if needed
-rm -rf venv && python3.12 -m venv venv
-```
-
-**Missing dependencies:**
-```bash
-# Reinstall requirements
-pip install --upgrade -r requirements.txt
-```
-
-## 🤝 Contributing
-
-1. Fork this repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Commit changes: `git commit -m 'Add amazing feature'`
-4. Push to branch: `git push origin feature/amazing-feature`
-5. Open a Pull Request
-
-## 📄 License
-
-[MIT License](LICENSE)
-
-## Audits
-
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/gujord-openapi-mcp-badge.png)](https://mseep.ai/app/gujord-openapi-mcp)
-
-## Star History
-
-**If you find it useful, please give it a ⭐ on GitHub!**
-
-[![Star History Chart](https://api.star-history.com/svg?repos=gujord/OpenAPI-MCP&type=Date)](https://www.star-history.com/#gujord/OpenAPI-MCP&Date)
+[MIT](LICENSE).

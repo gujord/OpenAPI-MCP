@@ -30,11 +30,11 @@ def test_load_json_file():
         assert "/pets" in spec["paths"], "Should have /pets path"
         
         print("✓ JSON file loading successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ JSON file loading failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_load_yaml_file():
@@ -55,11 +55,11 @@ def test_load_yaml_file():
         assert "/forecast" in spec["paths"], "Should have /forecast path"
         
         print("✓ YAML file loading successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ YAML file loading failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_relative_path():
@@ -82,12 +82,12 @@ def test_relative_path():
         os.chdir(original_dir)
         
         print("✓ Relative path loading successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Relative path loading failed: {e}")
         os.chdir(original_dir)  # Ensure we restore the directory
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_absolute_path():
@@ -102,11 +102,11 @@ def test_absolute_path():
         assert spec["info"]["title"] == "Test Weather API", "Should load from absolute path"
         
         print("✓ Absolute path loading successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Absolute path loading failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_missing_file():
@@ -118,16 +118,16 @@ def test_missing_file():
         spec = OpenAPILoader.load_spec("./test/fixtures/does_not_exist.json")
         
         print("✗ Should have raised FileNotFoundError")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
         
     except FileNotFoundError as e:
         assert "does_not_exist.json" in str(e), "Error should mention the file"
         print("✓ Missing file error handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Unexpected error: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_invalid_json():
@@ -143,18 +143,18 @@ def test_invalid_json():
         try:
             spec = OpenAPILoader.load_spec(temp_path)
             print("✗ Should have raised OpenAPIError for invalid JSON")
-            return False
+            raise AssertionError("Test failed; see the diagnostic above")
         finally:
             os.unlink(temp_path)
             
     except OpenAPIError as e:
         assert "Failed to parse" in str(e), "Error should mention parse failure"
         print("✓ Invalid JSON error handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Unexpected error: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_invalid_yaml():
@@ -166,16 +166,16 @@ def test_invalid_yaml():
         spec = OpenAPILoader.load_spec("./test/fixtures/invalid.yaml")
         
         print("✗ Should have raised OpenAPIError for invalid YAML")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
         
     except OpenAPIError as e:
         assert "Failed to parse" in str(e) or "Failed to load" in str(e), "Error should mention parse failure"
         print("✓ Invalid YAML error handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Unexpected error: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_invalid_openapi_spec():
@@ -187,16 +187,16 @@ def test_invalid_openapi_spec():
         spec = OpenAPILoader.load_spec("./test/fixtures/invalid.json")
         
         print("✗ Should have raised OpenAPIError for invalid spec")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
         
     except OpenAPIError as e:
         assert "Missing required properties" in str(e), "Error should mention missing properties"
         print("✓ Invalid OpenAPI spec error handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Unexpected error: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_file_size_limit():
@@ -219,22 +219,22 @@ def test_file_size_limit():
             file_size = os.path.getsize(temp_path)
             if file_size <= 10 * 1024 * 1024:
                 print(f"✗ Test file not large enough ({file_size} bytes)")
-                return False
+                raise AssertionError("Test failed; see the diagnostic above")
                 
             spec = OpenAPILoader.load_spec(temp_path)
             print("✗ Should have raised OpenAPIError for large file")
-            return False
+            raise AssertionError("Test failed; see the diagnostic above")
         finally:
             os.unlink(temp_path)
             
     except OpenAPIError as e:
         assert "too large" in str(e), "Error should mention file size"
         print("✓ File size limit enforced correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Unexpected error: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_remote_url_still_works():
@@ -249,23 +249,18 @@ def test_remote_url_still_works():
         ]
         
         for url in urls:
-            # We can't actually fetch these, but we can verify they're not treated as local files
-            try:
-                spec = OpenAPILoader.load_spec(url)
-                # This will fail with connection error, not file not found
-            except FileNotFoundError:
-                print(f"✗ URL {url} was treated as local file")
-                return False
-            except Exception:
-                # Any other error is fine - we just want to ensure it's not treated as a file
-                pass
+            from unittest.mock import patch
+            expected = {"info": {}, "paths": {}}
+            with patch.object(OpenAPILoader, "_load_remote_url", return_value=expected) as remote:
+                assert OpenAPILoader.load_spec(url) == expected
+                remote.assert_called_once_with(url, None)
         
         print("✓ Remote URLs correctly identified")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Unexpected error: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def run_all_tests():

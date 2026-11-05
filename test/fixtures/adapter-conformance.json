@@ -1,0 +1,46 @@
+{
+  "openapi": "3.0.3",
+  "info": {"title": "Adapter comparison", "version": "1.0"},
+  "servers": [{"url": "https://upstream.example.invalid"}],
+  "paths": {
+    "/items/{itemId}": {
+      "parameters": [{"name": "itemId", "in": "path", "required": true, "schema": {"type": "string"}}],
+      "get": {
+        "operationId": "getItem",
+        "parameters": [
+          {"name": "limit", "in": "query", "schema": {"type": "integer", "default": 10}},
+          {"name": "X-Trace", "in": "header", "schema": {"type": "string"}}
+        ],
+        "responses": {"200": {"description": "OK"}}
+      }
+    },
+    "/orders": {
+      "post": {
+        "operationId": "createOrder",
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Order"}}}},
+        "responses": {"200": {"description": "OK"}}
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "search",
+        "parameters": [{"name": "tags", "in": "query", "required": true, "style": "form", "explode": false, "schema": {"type": "array", "items": {"type": "string"}}}],
+        "responses": {"200": {"description": "OK"}}
+      }
+    },
+    "/submit": {
+      "post": {
+        "operationId": "submitForm",
+        "requestBody": {"required": true, "content": {"application/x-www-form-urlencoded": {"schema": {"type": "object", "properties": {"email": {"type": "string"}}, "required": ["email"]}}}},
+        "responses": {"200": {"description": "OK"}}
+      }
+    },
+    "/private": {"delete": {"operationId": "deletePrivate", "responses": {"200": {"description": "OK"}}}},
+    "/fail": {"get": {"operationId": "fail", "responses": {"503": {"description": "Unavailable"}}}}
+  },
+  "components": {
+    "schemas": {
+      "Order": {"type": "object", "properties": {"quantity": {"type": "integer", "minimum": 1}, "sku": {"type": "string"}}, "required": ["quantity", "sku"]}
+    }
+  }
+}

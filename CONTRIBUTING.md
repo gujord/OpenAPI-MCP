@@ -34,7 +34,10 @@ Thank you for your interest in contributing! We welcome all contributions, wheth
    ```bash
    make check
    ```
-   This runs all checks (lint, type-check, security, tests).
+   This runs lint, type-check, security, and tests. The existing type-check backlog
+   currently prevents `make check` from passing; run the individual checks to
+   distinguish that backlog from a new regression. Do not suppress errors to
+   obtain a passing result.
 
 ### Available Make Commands
 
@@ -42,7 +45,7 @@ Thank you for your interest in contributing! We welcome all contributions, wheth
 |---------|-------------|
 | `make install` | Install package in production mode |
 | `make install-dev` | Install package with dev dependencies |
-| `make test` | Run all tests |
+| `make test` | Run offline tests; skip legacy live examples |
 | `make test-cov` | Run tests with coverage report |
 | `make lint` | Run linting checks (flake8, isort) |
 | `make format` | Format code with black and isort |
@@ -63,6 +66,29 @@ OPENAPI_URL=https://api.example.com/openapi.json make run
 # With the Petstore example
 make run-example
 ```
+
+## Offline and live tests
+
+Normal tests block network sockets (Unix sockets remain available to the async
+runtime), clear server credential settings, and disable `.env` loading. Fixtures
+and mocked HTTP responses exercise the adapter without calling public APIs.
+Returning a value from a pytest test fails the run; use assertions instead.
+
+Eleven legacy examples that contact external services or start listeners are
+skipped. They are retained for migration, not counted as validated functionality.
+To opt in explicitly, use a disposable environment with non-sensitive settings:
+
+```bash
+python -m pytest test/ -m live --run-live-tests --force-enable-socket
+```
+
+Some of those old examples still return booleans or depend on deprecated server
+APIs. They need conversion to assertions and current APIs before they can serve
+as a live compatibility gate. They were not executed during the offline review.
+
+For a package build that preserves local review evidence, use
+`python -m build --outdir build/distributions`; `make build` calls `make clean`
+and removes the entire `build/` directory first.
 
 ## How to Contribute
 

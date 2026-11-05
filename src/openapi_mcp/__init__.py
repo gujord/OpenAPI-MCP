@@ -8,28 +8,28 @@ __version__ = "1.0.4"
 __author__ = "Roger Gujord"
 __license__ = "MIT"
 
-from openapi_mcp.config import ServerConfig
 from openapi_mcp.auth import AuthenticationManager
-from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer, main
+from openapi_mcp.config import ServerConfig
 from openapi_mcp.exceptions import (
-    MCPServerError,
-    ConfigurationError,
     AuthenticationError,
+    ConfigurationError,
+    MCPServerError,
     RequestExecutionError,
     ToolNotFoundError,
 )
+from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer, main
 from openapi_mcp.types import (
-    OperationMetadata,
-    ParameterDefinition,
-    OAuthConfig,
-    UsernameAuthConfig,
-    SSEConfig,
-    MCPHTTPConfig,
     HTTPRetryConfig,
-    ToolMetadata,
-    RequestInfo,
     JSONRPCError,
     JSONRPCResponse,
+    MCPHTTPConfig,
+    OAuthConfig,
+    OperationMetadata,
+    ParameterDefinition,
+    RequestInfo,
+    SSEConfig,
+    ToolMetadata,
+    UsernameAuthConfig,
 )
 
 __all__ = [

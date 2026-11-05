@@ -22,7 +22,7 @@ async def test_local_spec_with_custom_auth():
         os.environ["SERVER_NAME"] = "test_petstore"
         os.environ["MCP_AUTH_HEADERS"] = '{"X-API-Key": "test-key-123", "X-Client-ID": "test-client"}'
         
-        config = ServerConfig()
+        config = ServerConfig(MCP_OPERATION_POLICY="all")
         
         # Verify local spec loading
         assert not config.openapi_url.startswith("http"), "Should be local file"
@@ -49,13 +49,13 @@ async def test_local_spec_with_custom_auth():
         assert "X-API-Key" in auth_headers, "Should have API key in auth"
         
         print("✓ Local spec with custom auth successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Local spec with custom auth failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         # Clean up environment
         os.environ.pop("MCP_AUTH_HEADERS", None)
@@ -71,7 +71,7 @@ async def test_weather_api_with_local_spec():
         os.environ["SERVER_NAME"] = "test_weather"
         os.environ.pop("MCP_AUTH_HEADERS", None)  # No auth for this test
         
-        config = ServerConfig()
+        config = ServerConfig(MCP_OPERATION_POLICY="all")
         server = FastMCPOpenAPIServer(config)
         await server.initialize()
         
@@ -94,13 +94,13 @@ async def test_weather_api_with_local_spec():
         assert "lon" in param_names, "Should have lon parameter"
         
         print("✓ Weather API with local spec successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Weather API with local spec failed: {e}")
         import traceback
         traceback.print_exc()
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 async def test_multiple_auth_methods():
@@ -128,7 +128,10 @@ async def test_multiple_auth_methods():
         
         # Test header application
         request_headers = {"Content-Type": "application/json"}
-        updated = auth_manager.add_auth_headers(request_headers)
+        from unittest.mock import patch
+        with patch.object(auth_manager._oauth_auth, "get_access_token", return_value="synthetic-token"):
+            updated = auth_manager.add_auth_headers(request_headers)
+        assert updated["Authorization"] == "Bearer synthetic-token"
         
         # Custom headers should be applied
         assert "X-API-Key" in updated, "Should have API key"
@@ -136,11 +139,11 @@ async def test_multiple_auth_methods():
         assert "Content-Type" in updated, "Should preserve existing headers"
         
         print("✓ Multiple auth methods work together")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Multiple auth methods test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         # Clean up environment
         os.environ.pop("MCP_AUTH_HEADERS", None)
@@ -178,12 +181,12 @@ async def test_relative_path_spec_loading():
         os.chdir(original_dir)
         
         print("✓ Relative path spec loading works")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Relative path test failed: {e}")
         os.chdir(original_dir)
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 async def test_error_handling_invalid_local_spec():
@@ -201,15 +204,15 @@ async def test_error_handling_invalid_local_spec():
         try:
             await server.initialize()
             print("✗ Should have raised error for invalid spec")
-            return False
+            raise AssertionError("Test failed; see the diagnostic above")
         except Exception as e:
             assert "Missing required properties" in str(e), "Should mention missing properties"
             print("✓ Invalid spec error handled correctly")
-            return True
+            return
             
     except Exception as e:
         print(f"✗ Error handling test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 async def test_spec_with_auth_headers_loading():
@@ -238,11 +241,11 @@ async def test_spec_with_auth_headers_loading():
         
         # If we made it here, headers were passed correctly
         print("✓ Auth headers infrastructure correct")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Auth headers loading test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
 

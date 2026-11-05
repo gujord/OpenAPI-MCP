@@ -29,11 +29,11 @@ def test_parse_json_headers():
         assert config.has_custom_headers() is True, "Should report having custom headers"
         
         print("✓ JSON header parsing successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ JSON header parsing failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         # Clean up environment
         os.environ.pop("MCP_AUTH_HEADERS", None)
@@ -58,11 +58,11 @@ def test_parse_simple_headers():
         assert headers["X-Custom"] == "value", "X-Custom should match"
         
         print("✓ Simple header parsing successful")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Simple header parsing failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         # Clean up environment
         os.environ.pop("MCP_AUTH_HEADERS", None)
@@ -85,11 +85,11 @@ def test_empty_headers():
         assert config.has_custom_headers() is False, "Should report not having custom headers"
         
         print("✓ Empty headers handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Empty headers test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_header_with_equals_in_value():
@@ -108,11 +108,11 @@ def test_header_with_equals_in_value():
         assert headers["X-Token"] == "normal", "Normal header should work"
         
         print("✓ Headers with = in value parsed correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Headers with = in value failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
 
@@ -141,11 +141,11 @@ def test_custom_header_authenticator():
         assert retrieved == headers, "Should return copy of headers"
         
         print("✓ CustomHeaderAuthenticator works correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ CustomHeaderAuthenticator test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
 
 
 def test_authentication_manager_with_custom_headers():
@@ -174,11 +174,11 @@ def test_authentication_manager_with_custom_headers():
         assert "X-API-Key" in custom, "Should return custom headers"
         
         print("✓ AuthenticationManager with custom headers works")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ AuthenticationManager test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
 
@@ -200,18 +200,17 @@ def test_header_precedence():
         
         # Add headers (OAuth will override Authorization if it gets a token)
         request_headers = {}
-        updated = auth_manager.add_auth_headers(request_headers)
-        
-        # Custom headers should be applied first
-        # (OAuth might override, but custom headers are applied)
-        assert "Authorization" in updated, "Should have Authorization header"
+        from unittest.mock import patch
+        with patch.object(auth_manager._oauth_auth, "get_access_token", return_value="synthetic-token"):
+            updated = auth_manager.add_auth_headers(request_headers)
+        assert updated["Authorization"] == "Bearer synthetic-token"
         
         print("✓ Header precedence works correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Header precedence test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
         os.environ.pop("OAUTH_CLIENT_ID", None)
@@ -244,11 +243,11 @@ def test_malformed_json_headers():
         assert headers2["X-API-Key"] == "value", "Should parse simple format"
         
         print("✓ Malformed JSON handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Malformed JSON test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
 
@@ -270,11 +269,11 @@ def test_whitespace_handling():
         assert len(headers) == 2, "Should have 2 headers"
         
         print("✓ Whitespace handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Whitespace handling test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
 
@@ -301,11 +300,11 @@ def test_special_characters_in_headers():
             assert headers[key] == value, f"Header {key} should match"
         
         print("✓ Special characters handled correctly")
-        return True
+        return
         
     except Exception as e:
         print(f"✗ Special characters test failed: {e}")
-        return False
+        raise AssertionError("Test failed; see the diagnostic above")
     finally:
         os.environ.pop("MCP_AUTH_HEADERS", None)
 

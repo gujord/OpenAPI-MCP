@@ -38,11 +38,11 @@ echo '{
   "mcpServers": {
     "weather": {
       "command": "npx",
-      "args": ["mcp-remote", "http://127.0.0.1:8001/sse"]
+      "args": ["mcp-remote", "http://127.0.0.1:8001/mcp"]
     },
     "petstore": {
       "command": "npx", 
-      "args": ["mcp-remote", "http://127.0.0.1:8002/sse"]
+      "args": ["mcp-remote", "http://127.0.0.1:8002/mcp"]
     }
   }
 }'

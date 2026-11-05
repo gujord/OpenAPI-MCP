@@ -9,23 +9,31 @@ Follows FastMCP patterns and best practices.
 
 __all__ = ["FastMCPOpenAPIServer", "OpenAPITool", "main", "retry_with_backoff"]
 
-import json
-import os
-import sys
-import logging
 import asyncio
+import json
+import logging
+import math
+import os
 import random
-from typing import Dict, Any, List, Optional
+import sys
 from dataclasses import dataclass
+from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
+
 import httpx
 from fastmcp import FastMCP
-
+from fastmcp.tools import Tool, ToolResult
+from jsonschema import Draft202012Validator, ValidationError
+from pydantic import Field
+from referencing import Registry
+from referencing.exceptions import Unresolvable
+from starlette.responses import JSONResponse
 
 # Retry configuration
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_BASE_DELAY = 1.0  # seconds
 DEFAULT_RETRY_MAX_DELAY = 30.0  # seconds
 RETRYABLE_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+RETRYABLE_METHODS = {"GET", "HEAD", "OPTIONS", "PUT", "DELETE"}
 
 
 async def retry_with_backoff(
@@ -62,7 +70,7 @@ async def retry_with_backoff(
             last_exception = e
             if attempt < max_retries:
                 # Exponential backoff with jitter
-                delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
+                delay = min(base_delay * (2**attempt) + random.SystemRandom().uniform(0, 1), max_delay)
                 if logger:
                     logger.warning(
                         f"Request failed (attempt {attempt + 1}/{max_retries + 1}): {e}. "
@@ -83,11 +91,14 @@ async def retry_with_backoff(
                     if retry_after:
                         try:
                             delay = float(retry_after)
+                            if not math.isfinite(delay):
+                                raise ValueError("Non-finite Retry-After")
                         except ValueError:
                             delay = base_delay * (2**attempt)
                     else:
-                        delay = min(base_delay * (2**attempt) + random.uniform(0, 1), max_delay)
+                        delay = min(base_delay * (2**attempt) + random.SystemRandom().uniform(0, 1), max_delay)
 
+                    delay = max(0.0, min(delay, max_delay))
                     if logger:
                         logger.warning(
                             f"Request failed with status {e.response.status_code} "
@@ -110,19 +121,19 @@ async def retry_with_backoff(
 
 
 try:
-    from .config import ServerConfig
     from .auth import AuthenticationManager
+    from .config import ServerConfig
+    from .exceptions import ConfigurationError, OpenAPIError
     from .openapi_loader import OpenAPILoader, OpenAPIParser
     from .request_handler import RequestHandler
-    from .schema_converter import SchemaConverter, NameSanitizer
-    from .exceptions import *
+    from .schema_converter import NameSanitizer, SchemaConverter
 except ImportError:
-    from config import ServerConfig
     from auth import AuthenticationManager
+    from config import ServerConfig
+    from exceptions import ConfigurationError, OpenAPIError
     from openapi_loader import OpenAPILoader, OpenAPIParser
     from request_handler import RequestHandler
-    from schema_converter import SchemaConverter, NameSanitizer
-    from exceptions import *
+    from schema_converter import NameSanitizer, SchemaConverter
 
 
 @dataclass
@@ -138,12 +149,32 @@ class OpenAPITool:
     server_url: str
 
 
+class OpenAPICallTool(Tool):
+    """Expose an OpenAPI schema directly, including non-Python parameter names."""
+
+    callback: Callable[..., Awaitable[Dict[str, Any]]] = Field(exclude=True)
+
+    async def run(self, arguments: Dict[str, Any]) -> ToolResult:
+        try:
+            # The empty registry forbids fetching external schema references.
+            Draft202012Validator(self.parameters, registry=Registry()).validate(arguments)
+        except (ValidationError, Unresolvable):
+            return ToolResult(content="Invalid tool arguments or unresolved schema reference", is_error=True)
+        result = await self.callback(**arguments)
+        return ToolResult(structured_content=result, is_error="error" in result)
+
+
 class FastMCPOpenAPIServer:
     """FastMCP-based OpenAPI proxy server following best practices."""
 
     def __init__(self, config: ServerConfig):
         self.config = config
         self.mcp = FastMCP(config.server_name)
+
+        @self.mcp.custom_route("/health", methods=["GET"])
+        async def health(request):
+            """Report process liveness without calling the upstream API."""
+            return JSONResponse({"status": "ok"})
 
         # Core components
         self.authenticator = AuthenticationManager(config)
@@ -154,6 +185,7 @@ class FastMCPOpenAPIServer:
         self.operations: List[OpenAPITool] = []
         self.server_url: str = ""
         self.api_info: Dict[str, Any] = {}
+        self._initialization_started = False
 
         # Initialize logging with debug level based on config
         log_level = logging.DEBUG if config.debug else logging.INFO
@@ -169,6 +201,9 @@ class FastMCPOpenAPIServer:
 
     async def initialize(self):
         """Initialize the server with OpenAPI spec and register tools."""
+        if self._initialization_started:
+            raise RuntimeError("Create a new server instance to reload a specification or operation policy")
+        self._initialization_started = True
         try:
             self.logger.debug(f"Loading OpenAPI spec from: {self.config.openapi_url}")
 
@@ -186,6 +221,25 @@ class FastMCPOpenAPIServer:
             parser = OpenAPIParser(NameSanitizer.sanitize_name)
             operations_info = parser.parse_operations(self.openapi_spec)
             self.logger.debug(f"Found {len(operations_info)} operations in spec")
+
+            allowed = set(self.config.allowed_operations)
+            available = {f"{info['method']} {info['path']}" for info in operations_info.values()}
+            if allowed - available:
+                raise ConfigurationError("Unknown allowed operations: " + ", ".join(sorted(allowed - available)))
+            if self.config.operation_policy == "allowlist":
+                operations_info = {
+                    name: info
+                    for name, info in operations_info.items()
+                    if f"{info['method']} {info['path']}" in allowed
+                }
+                if not operations_info:
+                    self.logger.warning(
+                        "No API operations allowed; set MCP_ALLOWED_OPERATIONS to expose selected routes"
+                    )
+            else:
+                self.logger.warning("All API operations are exposed by explicit MCP_OPERATION_POLICY=all")
+            if {"server_info", "list_operations"} & operations_info.keys():
+                raise OpenAPIError("An allowed API operation uses a reserved management-tool name")
 
             # Extract API info
             self.api_info = self.openapi_spec.get("info", {})
@@ -243,15 +297,20 @@ class FastMCPOpenAPIServer:
         # Create generic tool function
         generic_tool_function = self._make_generic_tool_function(tool)
 
-        # Store function for testing
-        tool._function = generic_tool_function
-
         # Register the tool with FastMCP using the decorator pattern
         tool_name = f"{self.config.server_name}_{tool.operation_id}"
         tool_description = f"[{self.config.server_name}] {tool.summary or tool.description}"
 
-        # Use the tool decorator to register with name and description
-        self.mcp.tool(name=tool_name, description=tool_description)(generic_tool_function)
+        schema = self._build_parameter_schema(tool)
+        Draft202012Validator.check_schema(schema)
+        self.mcp.add_tool(
+            OpenAPICallTool(
+                name=tool_name,
+                description=tool_description,
+                parameters=schema,
+                callback=generic_tool_function,
+            )
+        )
 
     def _make_generic_tool_function(self, tool: OpenAPITool):
         """Create generic tool function for a specific tool."""
@@ -259,35 +318,11 @@ class FastMCPOpenAPIServer:
         async def generic_tool_function(
             dry_run: bool = False,
             req_id: Optional[str] = None,
-            # Common OpenAPI parameters
-            id: Optional[str] = None,
-            status: Optional[str] = None,
-            tags: Optional[str] = None,
-            name: Optional[str] = None,
-            limit: Optional[int] = None,
-            offset: Optional[int] = None,
-            q: Optional[str] = None,
-            query: Optional[str] = None,
-            # Additional common parameters
-            page: Optional[int] = None,
-            size: Optional[int] = None,
-            sort: Optional[str] = None,
-            filter: Optional[str] = None,
-            # Weather API specific
-            lat: Optional[float] = None,
-            lon: Optional[float] = None,
-            altitude: Optional[int] = None,
+            **kwargs: Any,
         ) -> Dict[str, Any]:
             """Generic tool function for OpenAPI operation."""
             try:
-                # Build kwargs from function parameters
-                import inspect
-
-                frame = inspect.currentframe()
-                args = inspect.getargvalues(frame)
-                kwargs = {
-                    k: v for k, v in args.locals.items() if k != "self" and v is not None and k not in ["frame", "args"]
-                }
+                kwargs["dry_run"] = dry_run
 
                 if req_id is None:
                     req_id = f"{tool.operation_id}_{int(asyncio.get_event_loop().time())}"
@@ -329,20 +364,9 @@ class FastMCPOpenAPIServer:
                 # Make HTTP request with retry logic
                 retry_config = self.config.get_http_retry_config()
 
-                # Log request details (hide sensitive headers in non-debug mode)
-                if self.config.debug:
-                    safe_headers = {k: v for k, v in req_headers.items() if k.lower() not in ("authorization", "x-api-key")}
-                    self.logger.info(
-                        f"REQUEST: {tool.method.upper()} {full_url}\n"
-                        f"  Headers: {safe_headers}\n"
-                        f"  Params: {req_params}\n"
-                        f"  Body: {req_body}"
-                    )
-                else:
-                    self.logger.debug(
-                        f"Executing {tool.method.upper()} {full_url} "
-                        f"(timeout={retry_config['timeout']}s, max_retries={retry_config['max_retries']})"
-                    )
+                # Log metadata, not URL/parameter/header/body values: APIs
+                # can place secrets in any of those fields.
+                self.logger.debug("Executing %s operation %s", tool.method.upper(), tool.operation_id)
                 async with httpx.AsyncClient(timeout=retry_config["timeout"]) as client:
 
                     async def make_request():
@@ -354,7 +378,7 @@ class FastMCPOpenAPIServer:
 
                     response = await retry_with_backoff(
                         make_request,
-                        max_retries=retry_config["max_retries"],
+                        max_retries=retry_config["max_retries"] if tool.method.upper() in RETRYABLE_METHODS else 0,
                         base_delay=retry_config["base_delay"],
                         max_delay=retry_config["max_delay"],
                         logger=self.logger,
@@ -365,16 +389,7 @@ class FastMCPOpenAPIServer:
                     except (ValueError, json.JSONDecodeError):
                         response_data = response.text
 
-                    # Log response details
-                    if self.config.debug:
-                        response_preview = str(response_data)[:500] if response_data else "(empty)"
-                        self.logger.info(
-                            f"RESPONSE: {response.status_code} ({len(response.content)} bytes)\n"
-                            f"  Headers: {dict(response.headers)}\n"
-                            f"  Body: {response_preview}..."
-                        )
-                    else:
-                        self.logger.debug(f"Response: {response.status_code} ({len(response.content)} bytes)")
+                    self.logger.debug("Response: %d (%d bytes)", response.status_code, len(response.content))
 
                     return {
                         "jsonrpc": "2.0",
@@ -391,7 +406,10 @@ class FastMCPOpenAPIServer:
                 return {
                     "jsonrpc": "2.0",
                     "id": req_id or "unknown",
-                    "error": {"code": -32603, "message": f"HTTP error {e.response.status_code}: {e.response.text[:200]}"},
+                    "error": {
+                        "code": -32603,
+                        "message": f"HTTP error {e.response.status_code}: {e.response.text[:200]}",
+                    },
                 }
             except httpx.RequestError as e:
                 self.logger.error(f"Tool {tool.operation_id} request error: {e}")
@@ -412,14 +430,17 @@ class FastMCPOpenAPIServer:
 
     def _build_parameter_schema(self, tool: OpenAPITool) -> Dict[str, Any]:
         """Build parameter schema for tool from OpenAPI parameters."""
-        schema = {"type": "object", "properties": {}, "required": []}
+        schema: Dict[str, Any] = {"type": "object", "properties": {}, "required": [], "additionalProperties": False}
 
         for param in tool.parameters:
             param_name = param.get("name", "")
             param_schema = param.get("schema", {})
+            if param_name in {"dry_run", "req_id"}:
+                raise OpenAPIError(f"Operation {tool.operation_id} uses reserved parameter {param_name}")
+            if param_name in schema["properties"]:
+                raise OpenAPIError(f"Operation {tool.operation_id} has ambiguous parameter {param_name}")
 
             schema["properties"][param_name] = {
-                "type": param_schema.get("type", "string"),
                 "description": param.get("description", ""),
                 **param_schema,
             }
@@ -433,8 +454,26 @@ class FastMCPOpenAPIServer:
             "description": "Show request details without executing",
             "default": False,
         }
+        schema["properties"]["req_id"] = {"type": "string", "description": "Optional correlation ID"}
 
-        return schema
+        # Preserve local component references without allowing network retrieval.
+        def convert(value):
+            if isinstance(value, list):
+                return [convert(item) for item in value]
+            if not isinstance(value, dict):
+                return value
+            result = {key: convert(item) for key, item in value.items()}
+            ref = result.get("$ref")
+            if isinstance(ref, str) and ref.startswith("#/components/schemas/"):
+                result["$ref"] = ref.replace("#/components/schemas/", "#/$defs/", 1)
+            if result.pop("nullable", False) and "type" in result:
+                kind = result["type"]
+                result["type"] = kind + ["null"] if isinstance(kind, list) else [kind, "null"]
+            return result
+
+        schema["$defs"] = self.openapi_spec.get("components", {}).get("schemas", {})
+
+        return cast(Dict[str, Any], convert(schema))
 
     def _register_management_tools(self):
         """Register server management tools."""
@@ -448,6 +487,7 @@ class FastMCPOpenAPIServer:
                 "api_description": self.api_info.get("description", ""),
                 "server_url": self.server_url,
                 "total_operations": len(self.operations),
+                "operation_policy": self.config.operation_policy,
                 "authentication": {
                     "oauth_configured": self.config.is_oauth_configured(),
                     "username_auth_configured": self.config.is_username_auth_configured(),
@@ -495,7 +535,7 @@ class FastMCPOpenAPIServer:
             def make_schema_resource(schema_data):
                 async def get_schema() -> str:
                     """Get OpenAPI schema."""
-                    return SchemaConverter.convert_openapi_to_mcp_schema(schema_data)
+                    return json.dumps(SchemaConverter.convert_openapi_to_mcp_schema(schema_data))
 
                 return get_schema
 
@@ -551,7 +591,7 @@ This server provides access to {len(self.operations)} API operations from {api_t
         """Run server with SSE transport asynchronously."""
         import uvicorn
 
-        app = self.mcp.sse_app()
+        app = self.get_sse_app()
         config = uvicorn.Config(app, host=host, port=port, log_level="info")
         server = uvicorn.Server(config)
         await server.serve()
@@ -560,7 +600,7 @@ This server provides access to {len(self.operations)} API operations from {api_t
         """Run server with streamable HTTP transport asynchronously."""
         import uvicorn
 
-        app = self.mcp.streamable_http_app()
+        app = self.get_http_app()
         config = uvicorn.Config(app, host=host, port=port, log_level="info")
         server = uvicorn.Server(config)
         await server.serve()
@@ -570,23 +610,32 @@ This server provides access to {len(self.operations)} API operations from {api_t
         # FastMCP uses uvicorn to run SSE server
         import uvicorn
 
-        app = self.mcp.sse_app()
+        app = self.get_sse_app()
         uvicorn.run(app, host=host, port=port)
 
     def run_http(self, host: str = "127.0.0.1", port: int = 8000):
         """Run server with streamable HTTP transport."""
         import uvicorn
 
-        app = self.mcp.streamable_http_app()
+        app = self.get_http_app()
         uvicorn.run(app, host=host, port=port)
 
     def get_sse_app(self):
         """Get SSE app for custom deployment."""
-        return self.mcp.sse_app()
+        return self._get_http_app("sse")
 
     def get_http_app(self):
         """Get HTTP app for custom deployment."""
-        return self.mcp.streamable_http_app()
+        return self._get_http_app("http")
+
+    def _get_http_app(self, transport):
+        hosts = [host.strip() for host in self.config.mcp_allowed_hosts.split(",") if host.strip()]
+        return self.mcp.http_app(
+            transport=transport,
+            host_origin_protection=True,
+            allowed_hosts=hosts or None,
+            allowed_origins=[origin.strip() for origin in self.config.mcp_cors_origins.split(",") if origin.strip()],
+        )
 
 
 def main():
@@ -606,7 +655,7 @@ def main():
         # Choose transport based on configuration
         if config.mcp_http_enabled:
             # Check if we should use streamable HTTP or SSE
-            transport_type = os.environ.get("MCP_TRANSPORT_TYPE", "sse").lower()
+            transport_type = os.environ.get("MCP_TRANSPORT_TYPE", "http").lower()
 
             if transport_type == "http" or transport_type == "streamable":
                 logging.info(

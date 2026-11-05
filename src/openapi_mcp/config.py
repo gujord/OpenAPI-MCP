@@ -8,13 +8,13 @@ __all__ = ["ServerConfig", "load_config_from_file"]
 
 import json
 import logging
-import os
+import re
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, List, Literal, Optional
 
 import yaml
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, DotEnvSettingsSource, EnvSettingsSource, SettingsConfigDict
 
 try:
     from .exceptions import ConfigurationError
@@ -68,7 +68,7 @@ class ServerConfig(BaseSettings):
     Configuration can be loaded from:
     1. Environment variables (e.g., OPENAPI_URL, SERVER_NAME)
     2. .env file in the current directory
-    3. YAML/JSON config file (via MCP_CONFIG_FILE env var or from_file() method)
+    3. YAML/JSON config file (via from_file(); environment and .env take precedence)
 
     Example with environment variables:
         >>> os.environ["OPENAPI_URL"] = "https://api.example.com/openapi.json"
@@ -100,6 +100,33 @@ class ServerConfig(BaseSettings):
         description="Name of the MCP server",
         alias="SERVER_NAME",
     )
+
+    operation_policy: Literal["allowlist", "all"] = Field(
+        default="allowlist",
+        description="Expose only explicitly allowed API operations, or opt into all operations",
+        alias="MCP_OPERATION_POLICY",
+    )
+    allowed_operations: List[str] = Field(
+        default_factory=list,
+        description="Exact METHOD /path selectors, supplied as a JSON array in the environment",
+        alias="MCP_ALLOWED_OPERATIONS",
+    )
+
+    @field_validator("allowed_operations")
+    @classmethod
+    def validate_allowed_operations(cls, selectors: List[str]) -> List[str]:
+        for selector in selectors:
+            if not re.fullmatch(r"(GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|TRACE) /[^\s?#]*", selector):
+                raise ValueError("Each allowed operation must be an uppercase HTTP method and exact path: GET /items")
+        if len(selectors) != len(set(selectors)):
+            raise ValueError("Allowed operations must not contain duplicates")
+        return selectors
+
+    @model_validator(mode="after")
+    def validate_operation_policy(self) -> "ServerConfig":
+        if self.operation_policy == "all" and self.allowed_operations:
+            raise ValueError("MCP_ALLOWED_OPERATIONS cannot be combined with MCP_OPERATION_POLICY=all")
+        return self
 
     # OAuth configuration
     oauth_client_id: Optional[str] = Field(
@@ -179,8 +206,13 @@ class ServerConfig(BaseSettings):
     )
     mcp_cors_origins: str = Field(
         default=",".join(DEFAULT_CORS_ORIGINS),
-        description="Comma-separated CORS origins (use * for all)",
+        description="Allowed HTTP Origin values, comma-separated; not MCP client authentication",
         alias="MCP_CORS_ORIGINS",
+    )
+    mcp_allowed_hosts: str = Field(
+        default="",
+        description="Additional trusted HTTP Host values, comma-separated; loopback is allowed by default",
+        alias="MCP_ALLOWED_HOSTS",
     )
     mcp_message_size_limit: str = Field(
         default="4mb",
@@ -376,9 +408,8 @@ class ServerConfig(BaseSettings):
             else:
                 env_style_config[key.upper()] = value
 
-        # Set environment variables from file config (env vars take precedence)
-        for key, value in env_style_config.items():
-            if key not in os.environ and value is not None:
-                os.environ[key] = str(value)
-
-        return cls()
+        # Use the settings library's decoding rules for environment JSON lists.
+        # Never mutate process-wide credentials or policy while loading a file.
+        env_style_config.update(DotEnvSettingsSource(cls)())
+        env_style_config.update(EnvSettingsSource(cls)())
+        return cls(**env_style_config)
