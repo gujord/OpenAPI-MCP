@@ -1,24 +1,31 @@
 # OpenAPI to Model Context Protocol (MCP)
 
 [![PyPI version](https://badge.fury.io/py/openapi-mcp-proxy.svg)](https://pypi.org/project/openapi-mcp-proxy/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/gujord/OpenAPI-MCP/blob/main/LICENSE)
 ![Python version](https://img.shields.io/badge/Python-3.10+-blue)
 
 OpenAPI-MCP exposes operations from an OpenAPI document as MCP tools. It also
 provides schema resources, a usage prompt, and request previews. The server uses
 FastMCP for MCP transport and tool registration.
 
-![OpenAPI-MCP](img/Open-API-MCP-relations.png)
+![OpenAPI-MCP](https://raw.githubusercontent.com/gujord/OpenAPI-MCP/main/img/Open-API-MCP-relations.png)
 
-**Development status:** the changes described below are unreleased. PyPI 1.0.4
-does not contain these fixes. This source version targets FastMCP 4.1.6 and MCP
-Python SDK 2.3.0, with compatible minor updates allowed. See the
-[review and validation record](docs/reviews/2026-11-05-security-and-compatibility.md)
+**Release candidate: `2.0.0rc1`.** This candidate targets FastMCP 4.1.6 and MCP
+Python SDK 2.3.0, with compatible minor updates allowed. Version 1.0.4 does not
+contain these fixes. Read the [upgrade guide](https://github.com/gujord/OpenAPI-MCP/blob/main/docs/UPGRADING-2.md)
+before upgrading an existing installation. See the
+[review and validation record](https://github.com/gujord/OpenAPI-MCP/blob/main/docs/reviews/2026-11-05-security-and-compatibility.md)
 for tested versions, findings, and remaining work.
 
 ## Install and run
 
-Python 3.10 or later is required. To use this checkout:
+Python 3.10 or later is required. Install the candidate explicitly:
+
+```bash
+pip install 'openapi-mcp-proxy==2.0.0rc1'
+```
+
+To use this checkout:
 
 ```bash
 python -m venv .venv
@@ -62,7 +69,7 @@ openapi-mcp
 ```
 
 The MCP endpoint is `http://127.0.0.1:8001/mcp`. The supplied
-[client configuration](claude_desktop_config.json) uses `mcp-remote` to connect
+[client configuration](https://github.com/gujord/OpenAPI-MCP/blob/main/claude_desktop_config.json) uses `mcp-remote` to connect
 stdio clients to HTTP. Client applications and `mcp-remote` are separate
 components and were not tested in the offline review.
 
@@ -120,7 +127,7 @@ be called with:
 ```
 
 Previews still contain caller-supplied data. They are not a general redaction
-service. `dry_run` and `req_id` are reserved names; specifications that use them,
+service. `dry_run`, `req_id`, and `kwargs` are reserved names; specifications that use them,
 or reuse one input name across locations, are rejected rather than silently
 mapped to the wrong input.
 
@@ -177,7 +184,7 @@ These credentials authenticate **outgoing API calls**, not incoming MCP clients.
 Anyone allowed to call this MCP server can invoke its registered API operations
 with the server's API privileges. The operation allowlist limits those tools,
 but there is no per-user authorization layer yet. Use restricted API credentials
-and allow only the operations you intend to expose. See [SECURITY.md](SECURITY.md).
+and allow only the operations you intend to expose. See [SECURITY.md](https://github.com/gujord/OpenAPI-MCP/blob/main/SECURITY.md).
 
 A configured token login that fails now stops the API request. POST and PATCH
 requests are not retried automatically, because a lost response may hide a
@@ -208,17 +215,22 @@ python -m pytest test/ -q
 Normal tests block network sockets, isolate credentials, and use fixtures or
 mock HTTP responses. Eleven legacy live examples are skipped explicitly.
 Returning a value from a test is an error, so returning `False` cannot masquerade
-as a passing assertion. See [CONTRIBUTING.md](CONTRIBUTING.md) for the checks and
+as a passing assertion. See [CONTRIBUTING.md](https://github.com/gujord/OpenAPI-MCP/blob/main/CONTRIBUTING.md) for the checks and
 the opt-in command for legacy live examples.
 
-This is a custom OpenAPI adapter, not a complete OpenAPI implementation. Complex
-parameter serialization, multipart/form bodies, external references, response
-size limits, and per-user MCP authorization require more work. Deprecated server
+This is a custom OpenAPI adapter, not a complete OpenAPI implementation.
+Selected operations with unsupported request formats are rejected at startup:
+form/multipart/XML bodies, array/object path/query/header values, cookie inputs,
+parameter references/content, and nondefault serialization styles. Direct JSON
+bodies and scalar path/query/header parameters are supported. Explicit null
+JSON bodies are rejected before authentication. Unsupported omitted operations
+may remain in the specification. Response size limits and per-user MCP
+authorization still require more work. Deprecated server
 and transport modules remain for historical compatibility and have not received
 the same end-to-end validation as `fastmcp_server.py`.
 
 [FastMCP's native OpenAPI integration](https://gofastmcp.com/integrations/openapi)
-handles additional request formats. The [adapter comparison and policy review](docs/reviews/2026-11-05-operation-policy-and-adapters.md)
+handles additional request formats. The [adapter comparison and policy review](https://github.com/gujord/OpenAPI-MCP/blob/main/docs/reviews/2026-11-05-operation-policy-and-adapters.md)
 records a shared-fixture comparison, including differences in body input shapes,
 argument validation, and request previews. The current adapter remains in use;
 a replacement must preserve those contracts. The comparison script reports
@@ -228,10 +240,10 @@ known gaps with a nonzero exit status:
 python scripts/compare_openapi_adapters.py --output build/adapter-comparison.json
 ```
 
-The [initial review](docs/reviews/2026-11-05-security-and-compatibility.md) also
+The [initial review](https://github.com/gujord/OpenAPI-MCP/blob/main/docs/reviews/2026-11-05-security-and-compatibility.md) also
 covers the July 2026 MCP protocol changes. Updating the SDK alone is not proof
 of complete protocol conformance.
 
 ## License
 
-[MIT](LICENSE).
+[MIT](https://github.com/gujord/OpenAPI-MCP/blob/main/LICENSE).

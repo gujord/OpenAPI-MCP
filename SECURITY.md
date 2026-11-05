@@ -40,7 +40,7 @@ File-based configuration no longer writes policy or credentials into process-wid
 environment variables. See the [policy and adapter review](docs/reviews/2026-11-05-operation-policy-and-adapters.md)
 for tests and the limitations of a possible native-provider migration.
 
-## Unreleased hardening
+## Hardening in 2.0.0rc1
 
 The local November 2026 review adds:
 
@@ -52,7 +52,7 @@ The local November 2026 review adds:
 - Request/response debug metadata without full headers or payloads.
 - Offline regression tests and current FastMCP/MCP dependency constraints.
 
-These changes are **not included in PyPI 1.0.4**. They have not undergone an
+These changes are included in the `2.0.0rc1` candidate and **not included in 1.0.4**. They have not undergone an
 independent human security audit. Automated checks and an empty dependency-audit
 result are limited evidence, not a certification that the software is secure.
 See the [review record](docs/reviews/2026-11-05-security-and-compatibility.md).

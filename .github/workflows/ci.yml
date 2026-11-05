@@ -115,3 +115,9 @@ jobs:
         run: |
           pip install twine
           twine check dist/*
+
+      - name: Test installed wheel over stdio and HTTP
+        run: |
+          python -m venv build/release-test
+          build/release-test/bin/pip install dist/*.whl
+          build/release-test/bin/python scripts/smoke_release.py --output build/release-smoke.json

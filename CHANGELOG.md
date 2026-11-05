@@ -1,6 +1,17 @@
 # Changelog
 
-## Unreleased — 2026-11-05
+## 2.0.0rc1 — 2026-11-05
+
+Release candidate with intentional compatibility changes. See
+[the upgrade guide](docs/UPGRADING-2.md).
+
+- Reject selected request formats that cannot be serialized correctly, instead
+  of sending misleading requests; reject structured non-body values and explicit
+  null JSON bodies before authentication.
+- Gate publication on regression tests, package metadata validation, and actual
+  stdio/HTTP calls against an installed wheel in a clean environment.
+- Use PyPI Trusted Publishing without a stored API token.
+
 
 - Default API exposure to an explicit operation allowlist. An empty list exposes
   no API operations; `MCP_OPERATION_POLICY=all` is an explicit compatibility option.
@@ -10,7 +21,7 @@
 - Add shared-fixture comparisons with FastMCP's native OpenAPIProvider. Retain the
   current adapter pending validation, preview, and input-shape compatibility work.
 - Update examples to select specific operations. This is an intentional behavior
-  change for source users; the published PyPI package remains unchanged.
+  change from 1.0.4.
 
 
 - Prevent server credentials and token acquisition in request previews; stop
@@ -29,7 +40,7 @@
   make returned test values fail instead of silently passing. Legacy live
   examples are explicitly opt-in.
 - Refresh setup, security boundaries, and architectural follow-up documentation;
-  apply repository source-formatting rules. No package release was made.
+  apply repository source-formatting rules.
 
 Evidence, unresolved limitations, and reproduction commands are recorded in
 [the review](docs/reviews/2026-11-05-security-and-compatibility.md).

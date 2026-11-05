@@ -28,6 +28,8 @@ from referencing import Registry
 from referencing.exceptions import Unresolvable
 from starlette.responses import JSONResponse
 
+from openapi_mcp.request_support import validate_operation_support
+
 # Retry configuration
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_RETRY_BASE_DELAY = 1.0  # seconds
@@ -240,6 +242,8 @@ class FastMCPOpenAPIServer:
                 self.logger.warning("All API operations are exposed by explicit MCP_OPERATION_POLICY=all")
             if {"server_info", "list_operations"} & operations_info.keys():
                 raise OpenAPIError("An allowed API operation uses a reserved management-tool name")
+            for info in operations_info.values():
+                validate_operation_support(self.openapi_spec, info["path"], info["method"])
 
             # Extract API info
             self.api_info = self.openapi_spec.get("info", {})
@@ -435,7 +439,7 @@ class FastMCPOpenAPIServer:
         for param in tool.parameters:
             param_name = param.get("name", "")
             param_schema = param.get("schema", {})
-            if param_name in {"dry_run", "req_id"}:
+            if param_name in {"dry_run", "req_id", "kwargs"}:
                 raise OpenAPIError(f"Operation {tool.operation_id} uses reserved parameter {param_name}")
             if param_name in schema["properties"]:
                 raise OpenAPIError(f"Operation {tool.operation_id} has ambiguous parameter {param_name}")

@@ -7,6 +7,7 @@ __all__ = ["KwargsParser", "PathSanitizer", "ParameterProcessor", "RequestHandle
 import json
 import logging
 import re
+from importlib.metadata import version
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from urllib.parse import parse_qsl, quote, unquote
 
@@ -191,6 +192,11 @@ class ParameterProcessor:
             if name not in kwargs:
                 continue
 
+            if location == "body" and kwargs[name] is None:
+                raise ParameterError("Explicit null JSON bodies are not supported")
+            if location != "body" and not isinstance(kwargs[name], (str, int, float, bool)):
+                raise ParameterError(f"Parameter '{name}' requires a scalar value; structured values are unsupported")
+
             # Type conversion
             try:
                 value = ParameterProcessor._convert_parameter_type(kwargs[name], param.get("schema", {}))
@@ -201,7 +207,7 @@ class ParameterProcessor:
             if location == "query":
                 req_params[name] = value
             elif location == "header":
-                req_headers[name] = value
+                req_headers[name] = str(value).lower() if isinstance(value, bool) else str(value)
             elif location == "body":
                 req_body = value
 
@@ -263,7 +269,7 @@ class RequestHandler:
             # credentials to a tool caller.
             if not dry_run:
                 req_headers = self.authenticator.add_auth_headers(req_headers)
-            req_headers.setdefault("User-Agent", "OpenAPI-MCP/1.0")
+            req_headers.setdefault("User-Agent", f"OpenAPI-MCP/{version('openapi-mcp-proxy')}")
 
             # Build full URL
             full_url = server_url.rstrip("/") + "/" + processed_path.lstrip("/")

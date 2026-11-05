@@ -3,35 +3,57 @@ name: Publish to PyPI
 on:
   release:
     types: [published]
-  # Also allow manual trigger
   workflow_dispatch:
+
+concurrency:
+  group: pypi-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
-
     permissions:
-      id-token: write  # Required for trusted publishing
+      id-token: write  # PyPI Trusted Publishing; no stored API token
       contents: read
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install build dependencies
+      - name: Validate release version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          python - <<'PY'
+          import os, pathlib, tomllib
+          version = tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version']
+          tag = os.environ.get('RELEASE_TAG')
+          if tag and tag != 'v' + version:
+              raise SystemExit(f'Release tag {tag!r} does not match package version {version!r}')
+          print(f'Preparing openapi-mcp-proxy {version}')
+          PY
+
+      - name: Install build and test dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          pip install build twine
+          pip install -e '.[dev]'
 
-      - name: Build package
-        run: python -m build
+      - name: Run offline regression tests
+        run: python -m pytest test/ -q
 
-      - name: Publish to PyPI
+      - name: Build and check distributions
+        run: |
+          python -m build
+          python -m twine check dist/*
+
+      - name: Test the built wheel in a clean environment
+        run: |
+          python -m venv build/release-test
+          build/release-test/bin/pip install dist/*.whl
+          build/release-test/bin/python scripts/smoke_release.py --output build/release-smoke.json
+
+      - name: Publish tested distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}

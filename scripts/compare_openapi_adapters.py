@@ -20,6 +20,7 @@ from fastmcp import Client, FastMCP
 from fastmcp.server.providers.openapi import MCPType, RouteMap
 
 from openapi_mcp.config import ServerConfig
+from openapi_mcp.exceptions import OpenAPIError
 from openapi_mcp.fastmcp_server import FastMCPOpenAPIServer
 
 SPEC_PATH = Path(__file__).resolve().parents[1] / "test/fixtures/adapter-conformance.json"
@@ -95,7 +96,12 @@ async def compare(adapter, case):
                     OPENAPI_URL=str(SPEC_PATH),
                     SERVER_NAME="comparison",
                     MCP_OPERATION_POLICY="allowlist",
-                    MCP_ALLOWED_OPERATIONS=ALLOWED,
+                    MCP_ALLOWED_OPERATIONS=[
+                        selector
+                        for selector in ALLOWED
+                        if spec["paths"][selector.split(" ", 1)[1]][selector.split(" ", 1)[0].lower()]["operationId"]
+                        == operation
+                    ],
                     HTTP_MAX_RETRIES=0,
                     MCP_AUTH_HEADERS="",
                     OAUTH_CLIENT_ID=None,
@@ -106,7 +112,18 @@ async def compare(adapter, case):
                     _env_file=None,
                 )
                 server = FastMCPOpenAPIServer(config)
-                await server.initialize()
+                try:
+                    await server.initialize()
+                except OpenAPIError as error:
+                    return {
+                        "adapter": adapter,
+                        "case": name,
+                        "pass": False,
+                        "is_error": True,
+                        "requests": requests,
+                        "input_fields": [],
+                        "unsupported": str(error),
+                    }
                 mcp, tool_name, arguments = server.mcp, f"comparison_{operation}", custom_args
                 # The production request path receives an actual mock HTTP client.
                 stack.enter_context(
